@@ -11,4 +11,5 @@ f2fs-$(CONFIG_FS_VERITY) += verity.o
 f2fs-$(CONFIG_F2FS_FS_COMPRESSION) += compress.o
 f2fs-$(CONFIG_F2FS_IOSTAT) += iostat.o
 f2fs-$(CONFIG_F2FS_VIP_FILE) += vip.o
+f2fs-$(CONFIG_F2FS_FS_HYBRID_UFS) += hybrid.o
 f2fs-$(CONFIG_XIAOMI_ENHANCED_IOSTAT) += en_iostat.o

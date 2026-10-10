@@ -1276,7 +1276,164 @@ static struct f2fs_attr f2fs_attr_vip_file_enable = {
 	.show	= vip_file_enable_show,
 	.store	= vip_file_enable_store,
 };
-#endif
+  #endif
+
+  #ifdef CONFIG_F2FS_FS_HYBRID_UFS
+  /*
+   * MAIN/EXT hybrid UFS nodes. The node set is the one the stock image
+   * exposes; what the ratios default to and the wording of the ro node
+   * are our choices, see fs/f2fs/hybrid.c.
+   */
+  static ssize_t sb_hybrid_show(struct f2fs_attr *a,
+  			struct f2fs_sb_info *sbi, char *buf)
+  {
+  	return sysfs_emit(buf, "%u\n", sbi->hybrid_enabled);
+  }
+
+  static ssize_t sb_hybrid_store(struct f2fs_attr *a,
+  			 struct f2fs_sb_info *sbi,
+  			 const char *buf, size_t count)
+  {
+  	unsigned int t;
+  	int ret;
+
+  	ret = kstrtouint(skip_spaces(buf), 0, &t);
+  	if (ret)
+  		return ret;
+
+  	if (t > 1)
+  		return -EINVAL;
+
+  	spin_lock(&sbi->hybrid_lock);
+  	sbi->hybrid_enabled = t;
+  	spin_unlock(&sbi->hybrid_lock);
+
+  	return count;
+  }
+
+  static ssize_t hybrid_die_info_show(struct f2fs_attr *a,
+  			     struct f2fs_sb_info *sbi, char *buf)
+  {
+  	if (!sbi->hybrid_enabled ||
+  	    !f2fs_hw_support_hybrid(sbi, &sbi->hybrid_info.main,
+  			    &sbi->hybrid_info.ext))
+  		return sysfs_emit(buf, "hybrid not support\n");
+
+  	return sysfs_emit(buf,
+  		"main:\t\tstart[%llu]\tend[%llu]\tseg[%llu..%llu]\n"
+  		"ext:\t\tstart[%llu]\tend[%llu]\tseg[%llu..%llu]\n"
+  		"free_ratio:\t%u\n",
+  		(unsigned long long)sbi->hybrid_info.main.start_blk,
+  		(unsigned long long)sbi->hybrid_info.main.end_blk,
+  		(unsigned long long)sbi->hybrid_info.main.seg_start,
+  		(unsigned long long)sbi->hybrid_info.main.seg_end,
+  		(unsigned long long)sbi->hybrid_info.ext.start_blk,
+  		(unsigned long long)sbi->hybrid_info.ext.end_blk,
+  		(unsigned long long)sbi->hybrid_info.ext.seg_start,
+  		(unsigned long long)sbi->hybrid_info.ext.seg_end,
+  		sbi->hybrid_info.free_ratio);
+  }
+
+  static ssize_t hybrid_extension_list_show(struct f2fs_attr *a,
+  			     struct f2fs_sb_info *sbi, char *buf)
+  {
+  	ssize_t len = 0;
+  	int i, n;
+
+  	spin_lock(&sbi->hybrid_lock);
+  	n = sbi->hybrid_extension_count;
+  	for (i = 0; i < n; i++)
+  		len += sysfs_emit_at(buf, len, "%s%s", i ? "|" : "",
+  				    sbi->hybrid_extension[i]);
+  	spin_unlock(&sbi->hybrid_lock);
+
+  	len += sysfs_emit_at(buf, len, "\n");
+  	return len;
+  }
+
+  static ssize_t hybrid_extension_list_store(struct f2fs_attr *a,
+  			      struct f2fs_sb_info *sbi,
+  			      const char *buf, size_t count)
+  {
+  	char *tmp, *p, *next;
+  	int ret;
+
+  	/* An empty write drops the whole list, as the stock node does. */
+  	if (buf[0] == '\n' || buf[0] == '\0')
+  		return count;
+
+  	tmp = kstrndup(skip_spaces(buf), count, GFP_KERNEL);
+  	if (!tmp)
+  		return -ENOMEM;
+
+  	p = strim(tmp);
+  	while ((next = strsep(&p, "|")) != NULL) {
+  		next = skip_spaces(next);
+  		ret = f2fs_update_hybrid_extension_list(sbi, next,
+  						    strlen(next), true);
+  		if (ret) {
+  			kfree(tmp);
+  			return ret;
+  		}
+  	}
+
+  	kfree(tmp);
+  	return count;
+  }
+
+#define F2FS_HYBRID_RATIO_RW_ATTR(elname)			\
+static ssize_t elname##_show(struct f2fs_attr *a,		\
+		struct f2fs_sb_info *sbi, char *buf)		\
+{									\
+	return sysfs_emit(buf, "%u\n", sbi->hybrid_info.elname);\
+}									\
+									\
+static ssize_t elname##_store(struct f2fs_attr *a,		\
+	 struct f2fs_sb_info *sbi, const char *buf, size_t count)	\
+{									\
+	unsigned int t;						\
+	int ret;							\
+									\
+	ret = kstrtouint(skip_spaces(buf), 0, &t);		\
+	if (ret)							\
+		return ret;						\
+									\
+	spin_lock(&sbi->hybrid_lock);				\
+	sbi->hybrid_info.elname = t;				\
+	spin_unlock(&sbi->hybrid_lock);				\
+	return count;							\
+}									\
+									\
+static struct f2fs_attr f2fs_attr_##elname = {		\
+	.attr = {.name = __stringify(elname), .mode = 0644 },	\
+	.show	= elname##_show,				\
+	.store	= elname##_store,				\
+};
+
+  F2FS_HYBRID_RATIO_RW_ATTR(free_ratio)
+  F2FS_HYBRID_RATIO_RW_ATTR(gc_threshold)
+  F2FS_HYBRID_RATIO_RW_ATTR(large_file_threshold)
+  F2FS_HYBRID_RATIO_RW_ATTR(main_new_seg_ratio)
+  F2FS_HYBRID_RATIO_RW_ATTR(ext_new_seg_ratio)
+  F2FS_HYBRID_RATIO_RW_ATTR(gc_alloc_mode)
+
+  static struct f2fs_attr f2fs_attr_sb_hybrid = {
+  	.attr = {.name = "sb_hybrid", .mode = 0644 },
+  	.show	= sb_hybrid_show,
+  	.store	= sb_hybrid_store,
+  };
+
+  static struct f2fs_attr f2fs_attr_hybrid_die_info = {
+  	.attr = {.name = "hybrid_die_info", .mode = 0444 },
+  	.show	= hybrid_die_info_show,
+  };
+
+  static struct f2fs_attr f2fs_attr_hybrid_extension_list = {
+  	.attr = {.name = "hybrid_extension_list", .mode = 0644 },
+  	.show	= hybrid_extension_list_show,
+  	.store	= hybrid_extension_list_store,
+  };
+  #endif
 
 #ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
 /*
@@ -1604,6 +1761,17 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(reserved_pin_section),
 #ifdef CONFIG_F2FS_VIP_FILE
 	ATTR_LIST(vip_file_enable),
+#endif
+#ifdef CONFIG_F2FS_FS_HYBRID_UFS
+	ATTR_LIST(hybrid_die_info),
+	ATTR_LIST(hybrid_extension_list),
+	ATTR_LIST(free_ratio),
+	ATTR_LIST(gc_threshold),
+	ATTR_LIST(large_file_threshold),
+	ATTR_LIST(main_new_seg_ratio),
+	ATTR_LIST(ext_new_seg_ratio),
+	ATTR_LIST(gc_alloc_mode),
+	ATTR_LIST(sb_hybrid),
 #endif
 #ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
 	ATTR_LIST(en_iostat_enable),

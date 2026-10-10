@@ -4772,6 +4772,14 @@ try_onemore:
 	}
 
 	/* setup f2fs internal modules */
+#ifdef CONFIG_F2FS_FS_HYBRID_UFS
+	/* hybrid MAIN/EXT state must exist before the segment manager */
+	err = f2fs_hybrid_info_init(sbi);
+	if (err) {
+		f2fs_err(sbi, "Failed to initialize hybrid info (%d)", err);
+		goto free_hybrid;
+	}
+#endif
 	err = f2fs_build_segment_manager(sbi);
 	if (err) {
 		f2fs_err(sbi, "Failed to initialize F2FS segment manager (%d)",
@@ -5036,6 +5044,10 @@ free_page_array_cache:
 	f2fs_destroy_page_array_cache(sbi);
 free_percpu:
 	destroy_percpu_info(sbi);
+free_hybrid:
+#ifdef CONFIG_F2FS_FS_HYBRID_UFS
+	f2fs_hybrid_info_exit(sbi);
+#endif
 free_iostat:
 	f2fs_destroy_iostat(sbi);
 free_bio_info:

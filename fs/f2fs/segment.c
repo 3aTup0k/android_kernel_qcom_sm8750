@@ -2765,6 +2765,21 @@ static int get_new_segment(struct f2fs_sb_info *sbi,
 	bool init = true;
 	int i;
 	int ret = 0;
+#ifdef CONFIG_F2FS_FS_HYBRID_UFS
+	struct f2fs_hybrid_die_info *die = NULL;
+#endif
+
+	/*
+	 * MAIN/EXT hybrid UFS: ask the hybrid ranges which die a new segment
+	 * should come from and bias the search towards it. Without paired dies
+	 * f2fs_hw_support_hybrid() is false, this returns no die, and the search
+	 * starts exactly where upstream starts it.
+	 */
+	if (!f2fs_get_alloc_range(sbi, &die) && die)
+		hint = GET_SEC_FROM_SEG(sbi,
+				die == &sbi->hybrid_info.ext ?
+				sbi->hybrid_info.ext.seg_start :
+				sbi->hybrid_info.main.seg_start);
 
 	spin_lock(&free_i->segmap_lock);
 
@@ -2859,6 +2874,16 @@ got_it:
 	}
 	__set_inuse(sbi, segno);
 	*newseg = segno;
+#ifdef CONFIG_F2FS_FS_HYBRID_UFS
+	/*
+	 * Report where the segment landed. With paired dies this is the die the
+	 * block address falls in and its usage moves; without them
+	 * f2fs_hw_hybrid_get_avail() just reports -EOPNOTSUPP.
+	 */
+	if (!f2fs_hw_hybrid_get_avail(sbi, START_BLOCK(sbi, segno), &i))
+		f2fs_update_die_usage(sbi, i == F2FS_HYBRID_EXT ?
+				&sbi->hybrid_info.ext : &sbi->hybrid_info.main, 1);
+#endif
 out_unlock:
 	spin_unlock(&free_i->segmap_lock);
 
@@ -5700,6 +5725,11 @@ int f2fs_build_segment_manager(struct f2fs_sb_info *sbi)
 		return err;
 
 	init_min_max_mtime(sbi);
+#ifdef CONFIG_F2FS_FS_HYBRID_UFS
+	/* reserve the EXT die curseg slots, if the dies are paired */
+	if (f2fs_init_ext_cursegs(sbi))
+		return -EINVAL;
+#endif
 	return 0;
 }
 
