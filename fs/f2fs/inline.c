@@ -266,6 +266,14 @@ int f2fs_write_inline_data(struct inode *inode, struct folio *folio)
 	struct f2fs_sb_info *sbi = F2FS_I_SB(inode);
 	struct page *ipage;
 
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * f2fs_write_inline_data+0x144 -> set_inode_dst_flag in the HyperOS 4
+	 * binary.
+	 */
+	f2fs_set_inode_dst_flag(F2FS_I(inode), 1);
+#endif
+
 	ipage = f2fs_get_node_page(sbi, inode->i_ino);
 	if (IS_ERR(ipage))
 		return PTR_ERR(ipage);

@@ -627,8 +627,8 @@ enum {
 
 #define MAX_FLUSH_RETRY_COUNT	3	/* maximum flush retry count in f2fs_enable_checkpoint() */
 
-/* congestion wait timeout value, default: 20ms */
-#define	DEFAULT_IO_TIMEOUT	(msecs_to_jiffies(20))
+/* congestion wait timeout value, default: 6ms */
+#define	DEFAULT_IO_TIMEOUT	(msecs_to_jiffies(6))
 
 /* maximum retry quota flush count */
 #define DEFAULT_RETRY_QUOTA_FLUSH_COUNT		8
@@ -852,6 +852,9 @@ enum {
 	FI_ATOMIC_REPLACE,	/* indicate atomic replace */
 	FI_OPENED_FILE,		/* indicate file has been opened */
 	FI_DONATE_FINISHED,	/* indicate page donation of file has been finished */
+#ifdef CONFIG_F2FS_VIP_FILE
+	FI_VIP,			/* indicate inode is in the VIP set (protected from GC) */
+#endif
 	FI_MAX,			/* max flag, never be used */
 };
 
@@ -925,6 +928,16 @@ struct f2fs_inode_info {
 
 	unsigned int atomic_write_cnt;
 	loff_t original_i_size;		/* original i_size before atomic write */
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * Xiaomi VIP / cold-file classification, ported from the HyperOS 4 kernel.
+	 * These follow original_i_size at the end of f2fs_inode_info there, which
+	 * is exactly where the stock BTF puts cold_flag/task_flag/dst_flag.
+	 */
+	unsigned int cold_flag;		/* inode is a "cold file" by extension */
+	atomic_t task_flag;		/* 2 = plain writer, 4 = "background" writer */
+	atomic_t dst_flag;		/* write destination class */
+#endif
 };
 
 static inline void get_read_extent_info(struct extent_info *ext,
@@ -978,6 +991,56 @@ enum nat_state {
 	MAX_NAT_STATE,
 };
 
+#ifdef CONFIG_F2FS_VIP_FILE
+/*
+ * VIP inode set, ported from the HyperOS 4 kernel (CONFIG_F2FS_VIP_FILE).
+ *
+ * Layout matches the HyperOS 4 binary exactly (from its BTF), so the on-disk
+ * and in-memory contracts stay compatible:
+ *
+ *   struct f2fs_vip_manager       -- 48 bytes, f2fs_nm_info.vip at +376
+ *   struct vip_inode_sorted       --  8 bytes { nid, unsorted_idx }
+ *   struct vip_inode_unsorted     --  4 bytes { nid }
+ *
+ * Two containers are kept:
+ *   - sorted[]   : sorted by nid, binary-searchable, length = count
+ *   - unsorted[] : a ring buffer indexed by head/tail, length = unsorted_count
+ *
+ * unsorted_buf_size is the ring capacity. When the ring is full, its contents
+ * are merged into sorted[] and the ring is reset. sorted[] grows by doubling.
+ */
+struct vip_inode_sorted {
+	nid_t ino;			/* inode number */
+	unsigned int unsorted_idx;	/* index in the unsorted ring */
+};
+
+struct vip_inode_unsorted {
+	nid_t ino;			/* inode number */
+};
+
+struct f2fs_vip_manager {
+	struct vip_inode_sorted *sorted;	/* sorted by ino */
+	struct vip_inode_unsorted *unsorted;	/* ring buffer */
+	unsigned int count;		/* # entries in sorted[] */
+	unsigned int capacity;		/* allocated size of sorted[] */
+	unsigned int unsorted_buf_size;	/* capacity of unsorted[] */
+	unsigned int unsorted_head;	/* ring head */
+	unsigned int unsorted_tail;	/* ring tail */
+	spinlock_t lock;		/* protects all of the above */
+	unsigned int enabled;		/* mirrored from sysfs vip_file_enable */
+};
+
+#define F2FS_VIP_SORTED_MIN		8
+#define F2FS_VIP_UNSORTED_MIN		16
+
+static inline unsigned int f2fs_vip_unsorted_count(struct f2fs_vip_manager *vip)
+{
+	if (vip->unsorted_tail >= vip->unsorted_head)
+		return vip->unsorted_tail - vip->unsorted_head;
+	return vip->unsorted_buf_size - vip->unsorted_head + vip->unsorted_tail;
+}
+#endif
+
 struct f2fs_nm_info {
 	block_t nat_blkaddr;		/* base disk address of NAT */
 	nid_t max_nid;			/* maximum possible node ids */
@@ -1018,6 +1081,13 @@ struct f2fs_nm_info {
 	char *nat_bitmap_mir;		/* NAT bitmap mirror */
 #endif
 	int bitmap_size;		/* bitmap size */
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * VIP inode set (ported from HyperOS 4, F2FS_VIP_FILE).
+	 * See fs/f2fs/vip.c for the invariants.
+	 */
+	struct f2fs_vip_manager vip;
+#endif
 };
 
 /*
@@ -1757,6 +1827,20 @@ struct f2fs_sb_info {
 	struct percpu_counter total_valid_inode_count;
 
 	struct f2fs_mount_info mount_opt;	/* mount options */
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * Xiaomi second extension list (HyperOS 4). The stock image walks this
+	 * in set_file_temperature after the on-disk extension_list match, and
+	 * sets fi->cold_flag only when the file is cold, the feature word is
+	 * non-zero and the name also matches one of these entries. The stock
+	 * keeps count at +0x9e0 and the pointer array at +0x9e1 of the struct
+	 * that holds them; we keep an equivalent set here, sized by the same
+	 * 17-entry bound seen in the binary (cmp x24, #0x11).
+	 */
+	char *vip_cold_ext[17];
+	unsigned char vip_cold_ext_count;
+	unsigned int vip_cold_ext_enable;
+#endif
 
 	/* for cleaning operations */
 	struct f2fs_rwsem gc_lock;		/*
@@ -1933,6 +2017,15 @@ struct f2fs_sb_info {
 #endif
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	struct lock_class_key cp_global_sem_key;
+#endif
+
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+	/*
+	 * HyperOS 4 "enhanced iostat" layer on top of the base accounting
+	 * above; see fs/f2fs/en_iostat.c. Allocated per mount, so that a
+	 * filesystem built without the feature never pays for it.
+	 */
+	struct f2fs_en_iostat *en_iostat_mem;
 #endif
 };
 
@@ -3838,6 +3931,46 @@ int f2fs_restore_node_summary(struct f2fs_sb_info *sbi,
 int f2fs_flush_nat_entries(struct f2fs_sb_info *sbi, struct cp_control *cpc);
 int f2fs_build_node_manager(struct f2fs_sb_info *sbi);
 void f2fs_destroy_node_manager(struct f2fs_sb_info *sbi);
+#ifdef CONFIG_F2FS_VIP_FILE
+/* fs/f2fs/vip.c */
+int f2fs_vip_init(struct f2fs_nm_info *nm_i);
+void f2fs_vip_destroy(struct f2fs_nm_info *nm_i);
+unsigned int f2fs_vip_bsearch(struct f2fs_nm_info *nm_i, nid_t ino,
+				bool *found);
+int f2fs_vip_insert(struct f2fs_sb_info *sbi, nid_t ino);
+void f2fs_vip_remove(struct f2fs_sb_info *sbi, nid_t ino);
+bool f2fs_is_vip_inode(struct f2fs_sb_info *sbi, nid_t ino);
+int f2fs_update_vip_extension_list(struct f2fs_sb_info *sbi,
+				const char *name, size_t len, bool set);
+bool f2fs_set_inode_cold_from_extension(struct f2fs_sb_info *sbi,
+		struct inode *inode, const unsigned char *name,
+		unsigned int idx, unsigned int cold_count);
+void f2fs_inode_set_task_flag(struct f2fs_sb_info *sbi,
+				struct f2fs_inode_info *fi);
+void f2fs_set_inode_dst_flag(struct f2fs_inode_info *fi, unsigned int flag);
+#endif
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+struct f2fs_en_iostat;		/* opaque outside fs/f2fs/en_iostat.c */
+/* fs/f2fs/en_iostat.c */
+int f2fs_init_en_iostat(struct f2fs_sb_info *sbi);
+void f2fs_destroy_en_iostat(struct f2fs_sb_info *sbi);
+void f2fs_en_iostat_account(struct f2fs_sb_info *sbi,
+			enum iostat_type type, unsigned long long io_bytes);
+void f2fs_en_iostat_latency(struct f2fs_sb_info *sbi, unsigned long ms);
+void f2fs_en_iostat_tick(struct f2fs_sb_info *sbi);
+void f2fs_en_iostat_reset(struct f2fs_sb_info *sbi);
+/* sysfs front-end, implemented in fs/f2fs/en_iostat.c */
+unsigned int f2fs_en_iostat_enable_get(struct f2fs_sb_info *sbi);
+int f2fs_en_iostat_enable_set(struct f2fs_sb_info *sbi, unsigned int t);
+unsigned int f2fs_en_iostat_period_get(struct f2fs_sb_info *sbi);
+int f2fs_en_iostat_period_set(struct f2fs_sb_info *sbi, unsigned int t);
+unsigned int f2fs_en_iostat_threshold_get(struct f2fs_sb_info *sbi);
+int f2fs_en_iostat_threshold_set(struct f2fs_sb_info *sbi, unsigned int t);
+ssize_t f2fs_en_iostat_window_report(struct f2fs_sb_info *sbi,
+					char *buf);
+ssize_t f2fs_en_iostat_daily_report(struct f2fs_sb_info *sbi,
+					char *buf);
+#endif
 int __init f2fs_create_node_manager_caches(void);
 void f2fs_destroy_node_manager_caches(void);
 

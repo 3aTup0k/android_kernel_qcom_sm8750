@@ -96,6 +96,8 @@
 #include "../../io_uring/io-wq.h"
 #include "../smpboot.h"
 
+#include <linux/sched/bore.h>
+
 #include <trace/hooks/sched.h>
 #include <trace/hooks/cgroup.h>
 #include <trace/hooks/dtask.h>
@@ -10189,6 +10191,10 @@ void __init sched_init(void)
 #endif
 
 	wait_bit_init();
+
+#ifdef CONFIG_SCHED_BORE
+	sched_bore_init();
+#endif /* CONFIG_SCHED_BORE */
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	ptr += 2 * nr_cpu_ids * sizeof(void **);

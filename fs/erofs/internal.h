@@ -113,6 +113,93 @@ struct erofs_xattr_prefix_item {
 	u8 infix_len;
 };
 
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+/*
+ * HyperOS 4 EROFS I/O statistics. The definitions live here because
+ * struct erofs_sb_info embeds the counters by value; the implementation is
+ * fs/erofs/iostat.c.
+ *
+ * The node names and modes are recovered from the stock image; the numeric
+ * defaults and the report text are our own choice — see fs/erofs/iostat.c.
+ */
+/* finished windows kept for reporting */
+#define EROFS_IOSTAT_WIN_HISTORY		8
+/* days kept for the daily report */
+#define EROFS_IOSTAT_DAY_HISTORY		8
+
+#define EROFS_IOSTAT_DEFAULT_WINDOW_S	60
+#define EROFS_IOSTAT_MIN_WINDOW_S	1
+#define EROFS_IOSTAT_MAX_WINDOW_S	86400
+#define EROFS_IOSTAT_DEFAULT_THRESHOLD_MS	500
+#define EROFS_IOSTAT_MAX_THRESHOLD_MS	600000
+
+/*
+ * Two read classes, because an erofs mount serves both kinds: metadata (super
+ * block, inodes, xattrs) and file data.
+ */
+enum erofs_iostat_type {
+	EROFS_IOSTAT_META = 0,
+	EROFS_IOSTAT_DATA,
+	EROFS_IOSTAT_NR_TYPE,
+};
+
+struct erofs_iostat_win {
+	u64			reads[EROFS_IOSTAT_NR_TYPE];
+	u64			bytes[EROFS_IOSTAT_NR_TYPE];
+	u64			slow[EROFS_IOSTAT_NR_TYPE];
+	u64			peak_ms[EROFS_IOSTAT_NR_TYPE];
+	u64			start_sec;
+	unsigned long		start_jiffies;
+};
+
+struct erofs_iostat_day {
+	u64			reads[EROFS_IOSTAT_NR_TYPE];
+	u64			bytes[EROFS_IOSTAT_NR_TYPE];
+	u64			slow[EROFS_IOSTAT_NR_TYPE];
+	u64			day;		/* seconds since the epoch / 86400 */
+};
+
+/*
+ * iostat_lock protects the window rings and the three tunables alike.
+ */
+struct erofs_iostat {
+	spinlock_t		lock;
+
+	bool			enable;
+	unsigned int		window_period_s;
+	unsigned int		latency_threshold_ms;
+
+	struct erofs_iostat_win	cur;
+
+	struct erofs_iostat_win	hist[EROFS_IOSTAT_WIN_HISTORY];
+	unsigned int		hist_head;
+	unsigned int		hist_fill;
+
+	struct erofs_iostat_day	days[EROFS_IOSTAT_DAY_HISTORY];
+	unsigned int		day_head;
+	unsigned int		day_fill;
+	u64			cur_day;
+};
+
+/* accounting, called from the erofs read paths */
+void erofs_iostat_account(struct erofs_iostat *i, unsigned int type,
+			unsigned long long bytes, unsigned long ms);
+
+/* sysfs front-end, called from fs/erofs/sysfs.c */
+int erofs_iostat_enable_get(struct erofs_iostat *i);
+int erofs_iostat_enable_set(struct erofs_iostat *i, unsigned int t);
+int erofs_iostat_period_get(struct erofs_iostat *i);
+int erofs_iostat_period_set(struct erofs_iostat *i, unsigned int t);
+int erofs_iostat_threshold_get(struct erofs_iostat *i);
+int erofs_iostat_threshold_set(struct erofs_iostat *i, unsigned int t);
+void erofs_iostat_reset(struct erofs_iostat *i);
+ssize_t erofs_iostat_config_show(struct erofs_iostat *i, char *buf);
+ssize_t erofs_iostat_config_store(struct erofs_iostat *i, const char *buf,
+				size_t len);
+ssize_t erofs_iostat_window_report(struct erofs_iostat *i, char *buf);
+ssize_t erofs_iostat_daily_report(struct erofs_iostat *i, char *buf);
+#endif
+
 struct erofs_sb_info {
 	struct erofs_mount_opts opt;	/* options */
 #ifdef CONFIG_EROFS_FS_ZIP
@@ -170,6 +257,10 @@ struct erofs_sb_info {
 	struct kobject s_kobj;		/* /sys/fs/erofs/<devname> */
 	struct completion s_kobj_unregister;
 
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+	/* HyperOS 4 I/O statistics; see fs/erofs/iostat.c */
+	struct erofs_iostat iostat;
+#endif
 	/* fscache support */
 	struct fscache_volume *volume;
 	struct erofs_fscache *s_fscache;
@@ -179,6 +270,9 @@ struct erofs_sb_info {
 };
 
 #define EROFS_SB(sb) ((struct erofs_sb_info *)(sb)->s_fs_info)
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+void erofs_iostat_init(struct erofs_sb_info *sbi);
+#endif
 #define EROFS_I_SB(inode) ((struct erofs_sb_info *)(inode)->i_sb->s_fs_info)
 
 /* Mount flags set via mount options or defaults */

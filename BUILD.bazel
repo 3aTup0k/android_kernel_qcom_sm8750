@@ -160,7 +160,6 @@ define_common_kernels(target_configs = {
         "kmi_symbol_list": "android/abi_gki_aarch64",
         "additional_kmi_symbol_lists": [":aarch64_additional_kmi_symbol_lists"],
         "trim_nonlisted_kmi": True,
-        "protected_exports_list": "android/abi_gki_protected_exports_aarch64",
         "protected_modules_list": ":gki_aarch64_protected_modules",
         "module_implicit_outs": get_gki_modules_list("arm64") + get_kunit_modules_list("arm64"),
         "make_goals": _GKI_AARCH64_MAKE_GOALS,
@@ -175,7 +174,6 @@ define_common_kernels(target_configs = {
         "kmi_symbol_list": "android/abi_gki_aarch64",
         "additional_kmi_symbol_lists": [":aarch64_additional_kmi_symbol_lists"],
         "trim_nonlisted_kmi": True,
-        "protected_exports_list": "android/abi_gki_protected_exports_aarch64",
         "protected_modules_list": ":gki_aarch64_protected_modules",
         "module_implicit_outs": get_gki_modules_list("arm64") + get_kunit_modules_list("arm64"),
         "make_goals": _GKI_AARCH64_MAKE_GOALS,
@@ -190,7 +188,6 @@ define_common_kernels(target_configs = {
         "kmi_symbol_list": "android/abi_gki_aarch64",
         "additional_kmi_symbol_lists": [":aarch64_additional_kmi_symbol_lists"],
         "trim_nonlisted_kmi": True,
-        "protected_exports_list": "android/abi_gki_protected_exports_aarch64",
         "protected_modules_list": ":gki_aarch64_protected_modules",
         "module_implicit_outs": get_gki_modules_list("arm64") + get_kunit_modules_list("arm64"),
         "make_goals": _GKI_AARCH64_MAKE_GOALS,
@@ -698,7 +695,10 @@ define_consolidate()
 
 define_consolidate_16k()
 
-define_msm_platforms()
+# MSM platform targets (pineapple, sun, kera, ...) are not needed to build
+# the generic kernel_aarch64_dist, and their variant lists collide with this
+# kleaf version. The DTB/DTBO images come from the stock firmware partition.
+# define_msm_platforms()
 
 _ROCKPI4_MODULE_OUTS = [
     # keep sorted

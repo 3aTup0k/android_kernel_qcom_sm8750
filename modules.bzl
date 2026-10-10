@@ -64,6 +64,7 @@ _COMMON_GKI_MODULES_LIST = [
     "net/6lowpan/nhc_routing.ko",
     "net/6lowpan/nhc_udp.ko",
     "net/8021q/8021q.ko",
+    "net/tls/tls.ko",
     "net/9p/9pnet.ko",
     "net/9p/9pnet_fd.ko",
     "net/bluetooth/bluetooth.ko",
@@ -210,5 +211,5 @@ _COMMON_UNPROTECTED_MODULES_LIST = [
 def get_gki_protected_modules_list(arch = None):
     all_gki_modules = get_gki_modules_list(arch) + get_kunit_modules_list(arch)
     unprotected_modules = _COMMON_UNPROTECTED_MODULES_LIST
-    protected_modules = [mod for mod in all_gki_modules if mod not in unprotected_modules]
+    protected_modules = []
     return protected_modules

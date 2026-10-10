@@ -214,6 +214,10 @@ static void set_file_temperature(struct f2fs_sb_info *sbi, struct inode *inode,
 		file_set_cold(inode);
 	else
 		file_set_hot(inode);
+
+#ifdef CONFIG_F2FS_VIP_FILE
+	f2fs_set_inode_cold_from_extension(sbi, inode, name, i, cold_count);
+#endif
 }
 
 static struct inode *f2fs_new_inode(struct mnt_idmap *idmap,
@@ -599,6 +603,14 @@ static int f2fs_unlink(struct inode *dir, struct dentry *dentry)
 #endif
 	if (IS_DIRSYNC(dir))
 		f2fs_sync_fs(sbi->sb, 1);
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * f2fs_unlink+0xdc -> f2fs_vip_remove in the HyperOS 4 binary: dropping
+	 * the last link also drops the nid from the VIP set.
+	 */
+	if (S_ISREG(inode->i_mode))
+		f2fs_vip_remove(sbi, inode->i_ino);
+#endif
 fail:
 	trace_f2fs_unlink_exit(inode, err);
 	return err;

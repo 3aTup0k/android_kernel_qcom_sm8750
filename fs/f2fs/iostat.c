@@ -157,6 +157,10 @@ void f2fs_reset_iostat(struct f2fs_sb_info *sbi)
 	spin_lock_irq(&sbi->iostat_lat_lock);
 	memset(io_lat, 0, sizeof(struct iostat_lat_info));
 	spin_unlock_irq(&sbi->iostat_lat_lock);
+
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+	f2fs_en_iostat_reset(sbi);
+#endif
 }
 
 static inline void __f2fs_update_iostat(struct f2fs_sb_info *sbi,
@@ -207,7 +211,15 @@ void f2fs_update_iostat(struct f2fs_sb_info *sbi, struct inode *inode,
 
 	spin_unlock_irqrestore(&sbi->iostat_lock, flags);
 
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+	f2fs_en_iostat_account(sbi, type, io_bytes);
+#endif
+
 	f2fs_record_iostat(sbi);
+
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+	f2fs_en_iostat_tick(sbi);
+#endif
 }
 
 static inline void __update_iostat_latency(struct bio_iostat_ctx *iostat_ctx,
@@ -236,6 +248,10 @@ static inline void __update_iostat_latency(struct bio_iostat_ctx *iostat_ctx,
 	if (ts_diff > io_lat->peak_lat[lat_type][page_type])
 		io_lat->peak_lat[lat_type][page_type] = ts_diff;
 	spin_unlock_irqrestore(&sbi->iostat_lat_lock, flags);
+
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+	f2fs_en_iostat_latency(sbi, jiffies_to_msecs(ts_diff));
+#endif
 }
 
 void iostat_update_and_unbind_ctx(struct bio *bio)
@@ -300,6 +316,9 @@ void f2fs_destroy_iostat_processing(void)
 
 int f2fs_init_iostat(struct f2fs_sb_info *sbi)
 {
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+	int ret;
+#endif
 	/* init iostat info */
 	spin_lock_init(&sbi->iostat_lock);
 	spin_lock_init(&sbi->iostat_lat_lock);
@@ -310,10 +329,25 @@ int f2fs_init_iostat(struct f2fs_sb_info *sbi)
 	if (!sbi->iostat_io_lat)
 		return -ENOMEM;
 
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+	ret = f2fs_init_en_iostat(sbi);
+	if (ret)
+		goto release_io_lat;
+#endif
+
 	return 0;
+
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+release_io_lat:
+	kfree(sbi->iostat_io_lat);
+	return ret;
+#endif
 }
 
 void f2fs_destroy_iostat(struct f2fs_sb_info *sbi)
 {
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+	f2fs_destroy_en_iostat(sbi);
+#endif
 	kfree(sbi->iostat_io_lat);
 }

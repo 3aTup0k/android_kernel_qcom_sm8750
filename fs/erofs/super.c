@@ -353,6 +353,9 @@ static int erofs_read_superblock(struct super_block *sb)
 	}
 
 	/* parse on-disk compression configurations */
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+	erofs_iostat_init(sbi);
+#endif
 	ret = z_erofs_parse_cfgs(sb, dsb);
 	if (ret < 0)
 		goto out;

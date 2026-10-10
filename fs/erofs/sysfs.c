@@ -8,10 +8,17 @@
 
 #include "internal.h"
 
+
 enum {
 	attr_feature,
 	attr_pointer_ui,
 	attr_pointer_bool,
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+	attr_iostat_enable,
+	attr_iostat_config,
+	attr_iostat_window_latency,
+	attr_iostat_daily_latency,
+#endif
 };
 
 enum {
@@ -59,9 +66,27 @@ static struct erofs_attr erofs_attr_##_name = {			\
 EROFS_ATTR_RW_UI(sync_decompress, erofs_mount_opts);
 #endif
 
+/*
+ * HyperOS 4 I/O statistics. The implementation is fs/erofs/iostat.c; that
+ * file spells out what was recovered from the stock image and what is our own
+ * choice.
+ */
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+EROFS_ATTR(iostat_enable, 0644, iostat_enable);
+EROFS_ATTR(iostat_config, 0644, iostat_config);
+EROFS_ATTR(iostat_window_latency, 0644, iostat_window_latency);
+EROFS_ATTR(iostat_daily_latency, 0444, iostat_daily_latency);
+#endif
+
 static struct attribute *erofs_attrs[] = {
 #ifdef CONFIG_EROFS_FS_ZIP
 	ATTR_LIST(sync_decompress),
+#endif
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+	ATTR_LIST(iostat_enable),
+	ATTR_LIST(iostat_config),
+	ATTR_LIST(iostat_window_latency),
+	ATTR_LIST(iostat_daily_latency),
 #endif
 	NULL,
 };
@@ -123,6 +148,17 @@ static ssize_t erofs_attr_show(struct kobject *kobj,
 		if (!ptr)
 			return 0;
 		return sysfs_emit(buf, "%d\n", *(bool *)ptr);
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+	case attr_iostat_enable:
+		return sysfs_emit(buf, "%d\n",
+				erofs_iostat_enable_get(&sbi->iostat));
+	case attr_iostat_config:
+		return erofs_iostat_config_show(&sbi->iostat, buf);
+	case attr_iostat_window_latency:
+		return erofs_iostat_window_report(&sbi->iostat, buf);
+	case attr_iostat_daily_latency:
+		return erofs_iostat_daily_report(&sbi->iostat, buf);
+#endif
 	}
 	return 0;
 }
@@ -163,6 +199,33 @@ static ssize_t erofs_attr_store(struct kobject *kobj, struct attribute *attr,
 			return -EINVAL;
 		*(bool *)ptr = !!t;
 		return len;
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+	case attr_iostat_enable: {
+		int v;
+
+		ret = kstrtoint(skip_spaces(buf), 0, &v);
+		if (ret)
+			return ret;
+		if (v != 0 && v != 1)
+			return -EINVAL;
+		ret = erofs_iostat_enable_set(&sbi->iostat, v);
+		if (ret)
+			return ret;
+		return len;
+	}
+	case attr_iostat_config:
+		return erofs_iostat_config_store(&sbi->iostat, buf, len);
+	case attr_iostat_window_latency:
+		/*
+		 * The stock image has a store handler for this node as well
+		 * (erofs_iostat_latency_stats_reset); any write starts a fresh
+		 * window, which is what a write to a report node can mean.
+		 */
+		if (!buf)
+			return -EINVAL;
+		erofs_iostat_reset(&sbi->iostat);
+		return len;
+#endif
 	}
 	return 0;
 }

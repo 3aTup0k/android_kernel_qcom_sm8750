@@ -136,6 +136,22 @@ config F2FS_FS_ZSTD
 	help
 	  Support ZSTD compress algorithm, if unsure, say Y.
 
+config XIAOMI_ENHANCED_IOSTAT
+	bool "HyperOS 4 enhanced f2fs I/O statistics"
+	depends on F2FS_IOSTAT
+	help
+	  HyperOS 4 carries an extra accounting layer on top of F2FS_IOSTAT and
+	  exposes it through
+
+	    /sys/fs/f2fs/<dev>/en_iostat_enable
+	    /sys/fs/f2fs/<dev>/iostat_window_period_s
+	    /sys/fs/f2fs/<dev>/iostat_latency_threshold_ms
+	    /sys/fs/f2fs/<dev>/iostat_window_latency
+	    /sys/fs/f2fs/<dev>/iostat_daily_latency
+
+	  /system/etc/init/hw/init.rc:1842 writes en_iostat_enable, so without this
+	  the node is simply missing on HyperOS 4.
+
 config F2FS_IOSTAT
 	bool "F2FS IO statistics information"
 	depends on F2FS_FS
@@ -144,6 +160,21 @@ config F2FS_IOSTAT
 	  Support getting IO statistics through sysfs and printing out periodic
 	  IO statistics tracepoint events. You have to turn on "iostat_enable"
 	  sysfs node to enable this feature.
+
+config F2FS_VIP_FILE
+	bool "F2FS VIP file support"
+	depends on F2FS_FS
+	help
+	  Maintain a set of "VIP" inodes in the node manager. VIP inodes are
+	  reported on f2fs_iget() through F2FS_I()/set_inode_flag(FI_VIP) and are
+	  protected from GC relocation, so their data stays where it was written.
+
+	  The set is indexed by nid: a sorted array for binary search plus an
+	  unsorted ring buffer that is merged into the sorted array when it fills
+	  up. Entries are added by F2FS_IOC_SET_PIN_FILE and removed on unlink.
+
+	  Ported from the HyperOS 4 kernel (F2FS_VIP_FILE, active there with
+	  vip_file_enable=1, gc_pin_file_thresh=2048, reserved_pin_section=512).
 
 config F2FS_UNFAIR_RWSEM
 	bool "F2FS unfair rw_semaphore"

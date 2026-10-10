@@ -25,6 +25,22 @@ config EROFS_FS
 
 	  If unsure, say N.
 
+config XIAOMI_EROFS_IOSTAT
+	bool "HyperOS 4 enhanced EROFS I/O statistics"
+	depends on EROFS_FS
+	help
+	  HyperOS 4 carries an I/O statistics layer for EROFS and exposes it under
+	  /sys/fs/erofs/<label>/:
+
+	    iostat_enable          iostat_config
+	    iostat_window_latency  iostat_daily_latency
+
+	  /system/etc/init/hw/init.rc writes those nodes for dev.system,
+	  dev.product, dev.vendor, dev.system_ext and dev.root, so without this
+	  the nodes are simply missing on HyperOS 4.
+
+	  The counters cover both erofs metadata reads (super block, inodes,
+	  xattrs) and file data reads.
 config EROFS_FS_DEBUG
 	bool "EROFS debugging feature"
 	depends on EROFS_FS

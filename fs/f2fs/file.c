@@ -67,6 +67,14 @@ static vm_fault_t f2fs_vm_page_mkwrite(struct vm_fault *vmf)
 	int err = 0;
 	vm_fault_t ret;
 
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * f2fs_vm_page_mkwrite+0x188 -> f2fs_inode_set_task_flag in the
+	 * HyperOS 4 binary: classify the inode by the writing task.
+	 */
+	f2fs_inode_set_task_flag(sbi, F2FS_I(inode));
+#endif
+
 	if (unlikely(IS_IMMUTABLE(inode)))
 		return VM_FAULT_SIGBUS;
 
@@ -1947,6 +1955,14 @@ static long f2fs_fallocate(struct file *file, int mode,
 	struct inode *inode = file_inode(file);
 	long ret = 0;
 
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * f2fs_fallocate+0xb4 -> f2fs_inode_set_task_flag in the HyperOS 4
+	 * binary: classify the inode by the writing task.
+	 */
+	f2fs_inode_set_task_flag(F2FS_I_SB(inode), F2FS_I(inode));
+#endif
+
 	if (unlikely(f2fs_cp_error(F2FS_I_SB(inode))))
 		return -EIO;
 	if (!f2fs_is_checkpoint_ready(F2FS_I_SB(inode)))
@@ -3537,6 +3553,14 @@ static int f2fs_ioc_set_pin_file(struct file *filp, unsigned long arg)
 	}
 
 	set_inode_flag(inode, FI_PIN_FILE);
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * __f2fs_ioctl+0xb68 -> f2fs_vip_insert in the HyperOS 4 binary:
+	 * F2FS_IOC_SET_PIN_FILE is what adds an nid to the VIP set.
+	 */
+	if (f2fs_vip_insert(sbi, inode->i_ino) < 0)
+		f2fs_warn(sbi, "vip: failed to add ino %lu", inode->i_ino);
+#endif
 	ret = F2FS_I(inode)->i_gc_failures;
 done:
 	f2fs_update_time(sbi, REQ_TIME);
@@ -5169,6 +5193,14 @@ static ssize_t f2fs_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 	const loff_t pos = iocb->ki_pos;
 	const ssize_t count = iov_iter_count(from);
 	ssize_t ret;
+
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * f2fs_file_write_iter+0x9c -> f2fs_inode_set_task_flag in the HyperOS 4
+	 * binary: classify the inode by the writing task.
+	 */
+	f2fs_inode_set_task_flag(F2FS_I_SB(inode), F2FS_I(inode));
+#endif
 
 	if (unlikely(f2fs_cp_error(F2FS_I_SB(inode)))) {
 		ret = -EIO;

@@ -5,6 +5,7 @@
  * Copyright (C) 2021, Alibaba Cloud
  */
 #include "internal.h"
+
 #include <linux/prefetch.h>
 #include <linux/sched/mm.h>
 #include <linux/dax.h>
@@ -79,7 +80,21 @@ void *erofs_read_metabuf(struct erofs_buf *buf, struct super_block *sb,
 			 erofs_blk_t blkaddr, enum erofs_kmap_type type)
 {
 	erofs_init_metabuf(buf, sb);
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+	{
+		unsigned long t0 = jiffies;
+		void *p = erofs_bread(buf, blkaddr, type);
+
+		if (!IS_ERR(p))
+			erofs_iostat_account(&EROFS_SB(sb)->iostat,
+					EROFS_IOSTAT_META,
+					1ULL << sb->s_blocksize_bits,
+					jiffies_to_msecs(jiffies - t0));
+		return p;
+	}
+#else
 	return erofs_bread(buf, blkaddr, type);
+#endif
 }
 
 static int erofs_map_blocks_flatmode(struct inode *inode,
@@ -359,13 +374,37 @@ int erofs_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 static int erofs_read_folio(struct file *file, struct folio *folio)
 {
 	trace_erofs_read_folio(folio, true);
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+	{
+		struct super_block *sb = folio->mapping->host->i_sb;
+		unsigned long t0 = jiffies;
+		int ret = iomap_read_folio(folio, &erofs_iomap_ops);
 
+		erofs_iostat_account(&EROFS_SB(sb)->iostat, EROFS_IOSTAT_DATA,
+					folio_size(folio),
+					jiffies_to_msecs(jiffies - t0));
+		return ret;
+	}
+#else
 	return iomap_read_folio(folio, &erofs_iomap_ops);
+#endif
 }
 
 static void erofs_readahead(struct readahead_control *rac)
 {
+#ifdef CONFIG_XIAOMI_EROFS_IOSTAT
+	{
+		struct super_block *sb = rac->mapping->host->i_sb;
+		unsigned long t0 = jiffies;
+
+		iomap_readahead(rac, &erofs_iomap_ops);
+		erofs_iostat_account(&EROFS_SB(sb)->iostat, EROFS_IOSTAT_DATA,
+					readahead_length(rac),
+					jiffies_to_msecs(jiffies - t0));
+	}
+#else
 	return iomap_readahead(rac, &erofs_iomap_ops);
+#endif
 }
 
 static sector_t erofs_bmap(struct address_space *mapping, sector_t block)

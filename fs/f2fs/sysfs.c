@@ -511,6 +511,16 @@ static ssize_t __sbi_store(struct f2fs_attr *a,
 		if (ret)
 			goto out;
 
+#ifdef CONFIG_F2FS_VIP_FILE
+		/*
+		 * The HyperOS 4 store calls f2fs_update_extension_list twice: once
+		 * for the on-disk list above and once more for the kernel-side
+		 * second list that set_file_temperature walks after the cold/hot
+		 * match. Feed that second list here so fi->cold_flag can be set.
+		 */
+		f2fs_update_vip_extension_list(sbi, name, strlen(name), !set ? false : true);
+#endif
+
 		ret = f2fs_commit_super(sbi, false);
 		if (ret)
 			f2fs_update_extension_list(sbi, name, hot, !set);
@@ -1227,6 +1237,171 @@ F2FS_SBI_GENERAL_RW_ATTR(blkzone_alloc_policy);
 #endif
 F2FS_SBI_GENERAL_RW_ATTR(carve_out);
 F2FS_SBI_GENERAL_RW_ATTR(reserved_pin_section);
+#ifdef CONFIG_F2FS_VIP_FILE
+static ssize_t vip_file_enable_show(struct f2fs_attr *a,
+				    struct f2fs_sb_info *sbi, char *buf)
+{
+	if (!sbi->nm_info)
+		return -ENODEV;
+	return sysfs_emit(buf, "%u\n", sbi->nm_info->vip.enabled);
+}
+
+static ssize_t vip_file_enable_store(struct f2fs_attr *a,
+				     struct f2fs_sb_info *sbi,
+				     const char *buf, size_t count)
+{
+	unsigned int t;
+	int ret;
+
+	if (!sbi->nm_info)
+		return -ENODEV;
+
+	ret = kstrtouint(skip_spaces(buf), 0, &t);
+	if (ret)
+		return ret;
+
+	if (t > 1)
+		return -EINVAL;
+
+	spin_lock(&sbi->nm_info->vip.lock);
+	sbi->nm_info->vip.enabled = t;
+	spin_unlock(&sbi->nm_info->vip.lock);
+
+	return count;
+}
+
+/* sbi is recovered from the kobject, so no offset/size is needed here. */
+static struct f2fs_attr f2fs_attr_vip_file_enable = {
+	.attr = {.name = "vip_file_enable", .mode = 0644 },
+	.show	= vip_file_enable_show,
+	.store	= vip_file_enable_store,
+};
+#endif
+
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+/*
+ * HyperOS 4 "enhanced iostat" nodes. The counters and the accounting hooks
+ * live in fs/f2fs/en_iostat.c; that file spells out what was recovered from
+ * the stock image and what is our own choice.
+ */
+static ssize_t en_iostat_enable_show(struct f2fs_attr *a,
+			struct f2fs_sb_info *sbi, char *buf)
+{
+	return sysfs_emit(buf, "%u\n", f2fs_en_iostat_enable_get(sbi));
+}
+
+static ssize_t en_iostat_enable_store(struct f2fs_attr *a,
+			struct f2fs_sb_info *sbi,
+			const char *buf, size_t count)
+{
+	unsigned int t;
+
+	if (kstrtouint(skip_spaces(buf), 0, &t))
+		return -EINVAL;
+
+	if (f2fs_en_iostat_enable_set(sbi, t))
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t iostat_window_period_s_show(struct f2fs_attr *a,
+			struct f2fs_sb_info *sbi, char *buf)
+{
+	return sysfs_emit(buf, "%u\n", f2fs_en_iostat_period_get(sbi));
+}
+
+static ssize_t iostat_window_period_s_store(struct f2fs_attr *a,
+			struct f2fs_sb_info *sbi,
+			const char *buf, size_t count)
+{
+	unsigned int t;
+
+	if (kstrtouint(skip_spaces(buf), 0, &t))
+		return -EINVAL;
+
+	if (f2fs_en_iostat_period_set(sbi, t))
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t iostat_latency_threshold_ms_show(struct f2fs_attr *a,
+			struct f2fs_sb_info *sbi, char *buf)
+{
+	return sysfs_emit(buf, "%u\n", f2fs_en_iostat_threshold_get(sbi));
+}
+
+static ssize_t iostat_latency_threshold_ms_store(struct f2fs_attr *a,
+			struct f2fs_sb_info *sbi,
+			const char *buf, size_t count)
+{
+	unsigned int t;
+
+	if (kstrtouint(skip_spaces(buf), 0, &t))
+		return -EINVAL;
+
+	if (f2fs_en_iostat_threshold_set(sbi, t))
+		return -EINVAL;
+
+	return count;
+}
+
+static ssize_t iostat_window_latency_show(struct f2fs_attr *a,
+			struct f2fs_sb_info *sbi, char *buf)
+{
+	return f2fs_en_iostat_window_report(sbi, buf);
+}
+
+/*
+ * The stock image has a store handler for this node as well
+ * (f2fs_iostat_window_latency_store). We treat any write as "start a fresh
+ * window", which is the only useful thing a write to a report node can mean.
+ */
+static ssize_t iostat_window_latency_store(struct f2fs_attr *a,
+			struct f2fs_sb_info *sbi,
+			const char *buf, size_t count)
+{
+	if (buf)
+		f2fs_en_iostat_reset(sbi);
+	return count;
+}
+
+static ssize_t iostat_daily_latency_show(struct f2fs_attr *a,
+			struct f2fs_sb_info *sbi, char *buf)
+{
+	return f2fs_en_iostat_daily_report(sbi, buf);
+}
+
+static struct f2fs_attr f2fs_attr_en_iostat_enable = {
+	.attr = {.name = "en_iostat_enable", .mode = 0644 },
+	.show	= en_iostat_enable_show,
+	.store	= en_iostat_enable_store,
+};
+
+static struct f2fs_attr f2fs_attr_iostat_window_period_s = {
+	.attr = {.name = "iostat_window_period_s", .mode = 0644 },
+	.show	= iostat_window_period_s_show,
+	.store	= iostat_window_period_s_store,
+};
+
+static struct f2fs_attr f2fs_attr_iostat_latency_threshold_ms = {
+	.attr = {.name = "iostat_latency_threshold_ms", .mode = 0644 },
+	.show	= iostat_latency_threshold_ms_show,
+	.store	= iostat_latency_threshold_ms_store,
+};
+
+static struct f2fs_attr f2fs_attr_iostat_window_latency = {
+	.attr = {.name = "iostat_window_latency", .mode = 0644 },
+	.show	= iostat_window_latency_show,
+	.store	= iostat_window_latency_store,
+};
+
+static struct f2fs_attr f2fs_attr_iostat_daily_latency = {
+	.attr = {.name = "iostat_daily_latency", .mode = 0444 },
+	.show	= iostat_daily_latency_show,
+};
+#endif
 F2FS_SBI_GENERAL_RW_ATTR(max_lock_elapsed_time);
 F2FS_SBI_GENERAL_RW_ATTR(lock_duration_priority);
 F2FS_SBI_GENERAL_RW_ATTR(adjust_lock_priority);
@@ -1427,6 +1602,16 @@ static struct attribute *f2fs_attrs[] = {
 	ATTR_LIST(max_read_extent_count),
 	ATTR_LIST(carve_out),
 	ATTR_LIST(reserved_pin_section),
+#ifdef CONFIG_F2FS_VIP_FILE
+	ATTR_LIST(vip_file_enable),
+#endif
+#ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT
+	ATTR_LIST(en_iostat_enable),
+	ATTR_LIST(iostat_window_period_s),
+	ATTR_LIST(iostat_latency_threshold_ms),
+	ATTR_LIST(iostat_window_latency),
+	ATTR_LIST(iostat_daily_latency),
+#endif
 	ATTR_LIST(max_lock_elapsed_time),
 	ATTR_LIST(lock_duration_priority),
 	ATTR_LIST(adjust_lock_priority),

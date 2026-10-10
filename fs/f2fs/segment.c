@@ -3932,6 +3932,13 @@ static void do_write_page(struct f2fs_summary *sum, struct f2fs_io_info *fio)
 	if (keep_order)
 		f2fs_down_read(&fio->sbi->io_order_lock);
 
+#ifdef CONFIG_F2FS_VIP_FILE
+	/*
+	 * do_write_page+0x64 -> set_inode_dst_flag in the HyperOS 4 binary.
+	 */
+	f2fs_set_inode_dst_flag(F2FS_I(fio->page->mapping->host), 2);
+#endif
+
 	if (f2fs_allocate_data_block(fio->sbi, fio->page, fio->old_blkaddr,
 			&fio->new_blkaddr, sum, type, fio)) {
 		if (fscrypt_inode_uses_fs_layer_crypto(fio->page->mapping->host))
