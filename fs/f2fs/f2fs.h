@@ -31,6 +31,8 @@
 
 struct pagevec;
 
+#include "hybrid.h"		/* CONFIG_F2FS_FS_HYBRID_UFS state */
+
 #ifdef CONFIG_F2FS_CHECK_FS
 #define f2fs_bug_on(sbi, condition)	BUG_ON(condition)
 #else
@@ -2017,6 +2019,20 @@ struct f2fs_sb_info {
 #endif
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	struct lock_class_key cp_global_sem_key;
+#endif
+
+#ifdef CONFIG_F2FS_FS_HYBRID_UFS
+	/*
+	 * MAIN/EXT hybrid UFS support. The stock tree has the same block here,
+	 * which is why its allocation and GC paths are compiled with the hybrid
+	 * ranges present. See fs/f2fs/hybrid.c for what is recovered from the
+	 * stock image and what is ours.
+	 */
+	struct f2fs_hybrid_info hybrid_info;
+	spinlock_t hybrid_lock;		/* guards hybrid_info and the lists */
+	bool hybrid_enabled;
+	char *hybrid_extension[F2FS_HYBRID_EXTENSION_MAX];
+	int hybrid_extension_count;
 #endif
 
 #ifdef CONFIG_XIAOMI_ENHANCED_IOSTAT

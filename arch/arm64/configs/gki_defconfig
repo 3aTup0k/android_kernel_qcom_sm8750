@@ -650,6 +650,10 @@ CONFIG_F2FS_FS_SECURITY=y
 CONFIG_F2FS_FS_COMPRESSION=y
 CONFIG_F2FS_UNFAIR_RWSEM=y
 CONFIG_F2FS_VIP_FILE=y
+# HyperOS 4 MAIN/EXT hybrid UFS support (CONFIG_F2FS_FS_HYBRID_UFS).
+# This is the one F2FS configuration stock has that we did not; see
+# fs/f2fs/hybrid.c for what is recovered and what is our own code.
+CONFIG_F2FS_FS_HYBRID_UFS=y
 CONFIG_XIAOMI_ENHANCED_IOSTAT=y
 CONFIG_XIAOMI_EROFS_IOSTAT=y
 CONFIG_FS_ENCRYPTION=y

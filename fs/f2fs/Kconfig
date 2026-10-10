@@ -176,6 +176,28 @@ config F2FS_VIP_FILE
 	  Ported from the HyperOS 4 kernel (F2FS_VIP_FILE, active there with
 	  vip_file_enable=1, gc_pin_file_thresh=2048, reserved_pin_section=512).
 
+config F2FS_FS_HYBRID_UFS
+	bool "F2FS MAIN/EXT hybrid UFS support"
+	depends on F2FS_FS
+	help
+	  HyperOS 4 is the only kernel we have that is built with this option; on
+	  the stock image it is the single remaining F2FS configuration difference
+	  against our tree.
+
+	  The feature pairs the two dies of a hybrid UFS package and lets new
+	  segments be taken from a separate MAIN or EXT range. The stock tree
+	  carries struct f2fs_hybrid_info inside f2fs_sb_info (192 bytes, eight
+	  members), so its allocation and GC paths are compiled with the hybrid
+	  ranges present.
+
+	  On this device the UFS backend reports that the dies are not paired, so
+	  f2fs_hw_support_hybrid() returns false and the hot paths take the same
+	  decision stock takes. What this option adds is the compiled-in shape of
+	  the feature that the stock tree has.
+
+	  See fs/f2fs/hybrid.c for exactly what is recovered from the stock image
+	  and what is our own implementation.
+
 config F2FS_UNFAIR_RWSEM
 	bool "F2FS unfair rw_semaphore"
 	depends on F2FS_FS && BLK_CGROUP
