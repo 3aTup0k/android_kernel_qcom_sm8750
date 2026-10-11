@@ -794,7 +794,13 @@ CONFIG_PANIC_TIMEOUT=-1
 CONFIG_SOFTLOCKUP_DETECTOR=y
 CONFIG_WQ_WATCHDOG=y
 CONFIG_SCHEDSTATS=y
-CONFIG_SCHED_BORE=y
+# CONFIG_SCHED_BORE is not set
+# The stock HyperOS 4 kernel has no BORE at all: no sched_bore,
+# sched_burst_* or reset_task_bore symbols in its kallsyms, and it does
+# still have sched_update_scaling() and normalized_sysctl_sched_base_slice,
+# which the BORE patch compiles out. With BORE the base slice becomes
+# nsecs_per_tick * DIV_ROUND_UP(min_base_slice, nsecs_per_tick) = 4 ms on an
+# 8-CPU HZ-250 system, instead of stock's 0.7 ms * (1+ilog2(8)) = 2.8 ms.
 CONFIG_HIST_TRIGGERS=y
 CONFIG_PID_IN_CONTEXTIDR=y
 CONFIG_KUNIT=m
