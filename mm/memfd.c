@@ -489,9 +489,9 @@ long memfd_ashmem_shim_ioctl(struct file *file, unsigned int cmd,
 		size_t len;
 
 		name = file->f_path.dentry->d_name.name;
-		p = strstr(name, MFD_NAME_PREFIX);
 		if (!name)
 			return -EINVAL;
+		p = strstr(name, MFD_NAME_PREFIX);
 		if (p != name)
 			return -ENOTTY;
 		name += MFD_NAME_PREFIX_LEN;
