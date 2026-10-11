@@ -1,0 +1,323 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2025 The LineageOS Project
+ */
+
+&spmi_bus {
+	#address-cells = <0x02>;
+	#size-cells = <0x00>;
+	interrupt-controller;
+	#interrupt-cells = <0x04>;
+
+	qcom,pm8550@1 {
+		compatible = "qcom,spmi-pmic";
+		reg = <0x01 0x00>;
+		#address-cells = <0x01>;
+		#size-cells = <0x00>;
+
+		pmic-ecid@100 {
+			compatible = "qcom,pmic-ecid";
+			reg = <0x100>;
+			qcom,pmic-name = "pm8550";
+		};
+
+		pm8550_tz: pm8550-temp-alarm@a00 {
+			compatible = "qcom,spmi-temp-alarm";
+			reg = <0xa00>;
+			interrupts = <0x01 0x0a 0x00 0x03>;
+			#thermal-sensor-cells = <0x00>;
+			io-channels = <&pmk8550_vadc 0x103>;
+			io-channel-names = "thermal";
+		};
+
+		pm8550_gpios: pinctrl@8800 {
+			compatible = "qcom,pm8550-gpio";
+			reg = <0x8800>;
+			gpio-controller;
+			#gpio-cells = <0x02>;
+			interrupt-controller;
+			#interrupt-cells = <0x02>;
+
+			key_vol_up {
+
+				key_vol_up_default: key_vol_up_default {
+					pins = "gpio6";
+					function = "normal";
+					input-enable;
+					bias-pull-up;
+					power-source = <0x01>;
+				};
+			};
+
+			anti_burn_mos_ctrl {
+
+				anti_burn_mos_ctrl_default: anti_burn_mos_ctrl_default {
+					pins = "gpio9";
+					function = "normal";
+					output-enable;
+					power-source = <0x00>;
+				};
+			};
+
+			pa_therm1 {
+
+				pa_therm1_default: pa_therm1_default {
+					pins = "gpio3";
+					bias-high-impedance;
+				};
+			};
+
+			conn_therm2 {
+
+				conn_therm2_default: conn_therm2_default {
+					pins = "gpio4";
+					bias-high-impedance;
+				};
+			};
+
+			display_therm {
+
+				display_therm_default: display_therm_default {
+					pins = "gpio2";
+					bias-high-impedance;
+				};
+			};
+
+			display_panel_avdd_default: display_panel_avdd_default {
+				qcom,drive-strength = <0x03>;
+				power-source = <0x01>;
+				bias-disable;
+				output-enable;
+				input-disable;
+				function = "normal";
+				pins = "gpio11";
+			};
+		};
+
+		led-controller {
+			compatible = "qcom,pm8350c-pwm";
+			#address-cells = <0x01>;
+			#size-cells = <0x00>;
+			#pwm-cells = <0x02>;
+			nvmem = <&pmk8550_sdam_21 &pmk8550_sdam_22>;
+			nvmem-names = "lpg_chan_sdam", "lut_sdam";
+
+			led@1 {
+				reg = <0x01>;
+				color = <0x01>;
+				label = "red";
+			};
+
+			led@2 {
+				reg = <0x02>;
+				color = <0x02>;
+				label = "green";
+			};
+
+			led@3 {
+				reg = <0x03>;
+				color = <0x03>;
+				label = "blue";
+			};
+		};
+
+		pm8550_bcl: bcl@4700 {
+			compatible = "qcom,pm8550-bcl-v5";
+			reg = <0x4700 0x100>;
+			interrupts = <0x01 0x47 0x00 0x00 0x01 0x47 0x01 0x00 0x01 0x47 0x02 0x00>;
+			interrupt-names = "bcl-lvl0", "bcl-lvl1", "bcl-lvl2";
+			qcom,pmic7-threshold;
+			#thermal-sensor-cells = <0x01>;
+		};
+
+		pm8550_flash: qcom,flash_led@ee00 {
+			compatible = "qcom,qti-pm8350c-flash-led";
+			reg = <0xee00>;
+			interrupts = <0x01 0xee 0x00 0x01 0x01 0xee 0x03 0x01 0x01 0xee 0x04 0x01>;
+			interrupt-names = "led-fault-irq", "all-ramp-down-done-irq", "all-ramp-up-done-irq";
+			qcom,thermal-derate-current = <200 500>;
+			status = "ok";
+
+			pm8550_flash0: qcom,flash_0 {
+				xiaomi,max-duration-ms = <300>;
+				label = "flash";
+				qcom,led-name = "led:flash_0";
+				qcom,max-current-ma = <850>;
+				qcom,default-led-trigger = "flash0_trigger";
+				qcom,id = <0x00>;
+				qcom,duration-ms = <300>;
+				qcom,ires-ua = <12500>;
+			};
+
+			pm8550_flash1: qcom,flash_1 {
+				xiaomi,max-duration-ms = <300>;
+				label = "flash";
+				qcom,led-name = "led:flash_1";
+				qcom,max-current-ma = <850>;
+				qcom,default-led-trigger = "flash1_trigger";
+				qcom,id = <0x01>;
+				qcom,duration-ms = <300>;
+				qcom,ires-ua = <12500>;
+			};
+
+			pm8550_flash2: qcom,flash_2 {
+				label = "flash";
+				qcom,led-name = "led:flash_2";
+				qcom,max-current-ma = <1500>;
+				qcom,default-led-trigger = "flash2_trigger";
+				qcom,id = <0x02>;
+				qcom,duration-ms = <1280>;
+				qcom,ires-ua = <12500>;
+			};
+
+			pm8550_flash3: qcom,flash_3 {
+				label = "flash";
+				qcom,led-name = "led:flash_3";
+				qcom,max-current-ma = <1500>;
+				qcom,default-led-trigger = "flash3_trigger";
+				qcom,id = <0x03>;
+				qcom,duration-ms = <1280>;
+				qcom,ires-ua = <12500>;
+			};
+
+			pm8550_torch0: qcom,torch_0 {
+				label = "torch";
+				qcom,led-name = "led:torch_0";
+				qcom,max-current-ma = <100>;
+				qcom,default-led-trigger = "torch0_trigger";
+				qcom,id = <0x00>;
+				qcom,ires-ua = <12500>;
+			};
+
+			pm8550_torch1: qcom,torch_1 {
+				label = "torch";
+				qcom,led-name = "led:torch_1";
+				qcom,max-current-ma = <100>;
+				qcom,default-led-trigger = "torch1_trigger";
+				qcom,id = <0x01>;
+				qcom,ires-ua = <12500>;
+			};
+
+			pm8550_torch2: qcom,torch_2 {
+				label = "torch";
+				qcom,led-name = "led:torch_2";
+				qcom,max-current-ma = <500>;
+				qcom,default-led-trigger = "torch2_trigger";
+				qcom,id = <0x02>;
+				qcom,ires-ua = <12500>;
+			};
+
+			pm8550_torch3: qcom,torch_3 {
+				label = "torch";
+				qcom,led-name = "led:torch_3";
+				qcom,max-current-ma = <500>;
+				qcom,default-led-trigger = "torch3_trigger";
+				qcom,id = <0x03>;
+				qcom,ires-ua = <12500>;
+			};
+
+			pm8550_switch0: qcom,led_switch_0 {
+				label = "switch";
+				qcom,led-name = "led:switch_0";
+				qcom,default-led-trigger = "switch0_trigger";
+				qcom,led-mask = <0x01>;
+				qcom,symmetry-en;
+			};
+
+			pm8550_switch1: qcom,led_switch_1 {
+				label = "switch";
+				qcom,led-name = "led:switch_1";
+				qcom,default-led-trigger = "switch1_trigger";
+				qcom,led-mask = <0x02>;
+				qcom,symmetry-en;
+			};
+
+			pm8550_switch2: qcom,led_switch_2 {
+				label = "switch";
+				qcom,led-name = "led:switch_2";
+				qcom,default-led-trigger = "switch2_trigger";
+				qcom,led-mask = <0x03>;
+				qcom,symmetry-en;
+			};
+		};
+	};
+};
+
+&thermal_zones {
+	pm8550_temp_alarm: pm8550_tz {
+		polling-delay-passive = <0x64>;
+		polling-delay = <0x00>;
+		thermal-governor = "step_wise";
+		thermal-sensors = <&pm8550_tz>;
+
+		trips {
+
+			pm8550_trip0: trip0 {
+				temperature = <0x17318>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			pm8550_trip1: trip1 {
+				temperature = <0x1c138>;
+				hysteresis = <0x00>;
+				type = "hot";
+			};
+
+			pm8550_trip2: trip2 {
+				temperature = <0x23668>;
+				hysteresis = <0x00>;
+				type = "critical";
+			};
+		};
+	};
+
+	pm8550-bcl-lvl0 {
+		polling-delay-passive = <0x32>;
+		polling-delay = <0x00>;
+		thermal-governor = "step_wise";
+		thermal-sensors = <&pm8550_bcl 0x05>;
+
+		trips {
+
+			bcl_lvl0: bcl-lvl0 {
+				temperature = <0x01>;
+				hysteresis = <0x01>;
+				type = "passive";
+			};
+		};
+	};
+
+	pm8550-bcl-lvl1 {
+		polling-delay-passive = <0x32>;
+		polling-delay = <0x00>;
+		thermal-governor = "step_wise";
+		thermal-sensors = <&pm8550_bcl 0x06>;
+
+		trips {
+
+			bcl_lvl1: bcl-lvl1 {
+				temperature = <0x01>;
+				hysteresis = <0x01>;
+				type = "passive";
+			};
+		};
+	};
+
+	pm8550-bcl-lvl2 {
+		polling-delay-passive = <0x32>;
+		polling-delay = <0x00>;
+		thermal-governor = "step_wise";
+		thermal-sensors = <&pm8550_bcl 0x07>;
+
+		trips {
+
+			bcl_lvl2: bcl-lvl2 {
+				temperature = <0x01>;
+				hysteresis = <0x01>;
+				type = "passive";
+			};
+		};
+	};
+};

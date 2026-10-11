@@ -1,0 +1,9 @@
+DTC_INCLUDE += $(srctree)/../sm8750-modules/qcom/opensource/synx-kernel
+
+ifeq ($(CONFIG_ARCH_SUN), y)
+include $(srctree)/$(src)/config/sun.mk
+endif
+
+always-y	:= $(dtbo-y) $(dtb-y)
+subdir-y	:= $(dts-dirs)
+clean-files	:= *.dtb *.dtbo

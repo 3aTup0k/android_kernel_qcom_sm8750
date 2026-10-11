@@ -1,0 +1,70 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2025 The LineageOS Project
+ */
+
+&tlmm {
+	cnss_bt_sw_ctrl: cnss_wlan_sw_ctrl {
+
+		mux {
+			function = "wcn_sw_ctrl";
+			pins = "gpio18";
+		};
+	};
+};
+
+&soc {
+	bluetooth: bt_peach {
+		qcom,pdc_init_table = "{class: wlan_pdc, ss: rf, res: s5f.m, enable: 1}", "{class: wlan_pdc, ss: rf, res: s5f.v, enable: 1}", "{class: wlan_pdc, ss: rf, res: s5f.v, upval: 876}", "{class: wlan_pdc, ss: rf, res: s5f.v, dwnval: 876}";
+		qcom,bt-vdd-wlan-aon-config = <0xd5de0 0xfcee0 0x00 0x00 0x01>;
+		qcom,bt-vdd-wlan-aon-supply = <&S4D>;
+		qcom,bt-vdd-rfa1p25-config = <0x140500 0x147260 0x00 0x01 0x00>;
+		qcom,bt-vdd-rfa1p8-config = <0x1c61a0 0x1e8480 0x00 0x01 0x00>;
+		qcom,bt-vdd-rfa0p75-config = <0xd5de0 0xf4240 0x00 0x01 0x00>;
+		qcom,bt-vdd-dig-config = <0x88b80 0xfcee0 0x00 0x01 0x00>;
+		qcom,bt-vdd-aon-config = <0xd5de0 0xf4240 0x00 0x01 0x01>;
+		qcom,bt-ant-ldo-config = <0x1b7740 0x1c61a0 0x00 0x01 0x00>;
+		qcom,bt-vdd12-io-config = <0x124f80 0x124f80 0x7530 0x01 0x01>;
+		qcom,bt-vdd18-aon-config = <0x1b7740 0x1b7740 0x7530 0x01 0x01>;
+		qcom,bt-vdd-rfa1p25-supply = <&S7I>;
+		qcom,bt-vdd-rfa1p8-supply = <&S3G>;
+		qcom,bt-vdd-rfa0p75-supply = <&S5F>;
+		qcom,bt-vdd-aon-supply = <&S5F>;
+		qcom,bt-vdd-dig-supply = <&S4D>;
+		qcom,bt-ant-ldo-supply = <&L6K>;
+		qcom,bt-vdd12-io-supply = <&L2F>;
+		qcom,bt-vdd18-aon-supply = <&L3F>;
+		qcom,qmp = <&aoss_qmp>;
+		qcom,bt-reset-gpio = <&pm8550ve_f_gpios 0x03 0x00>;
+		qcom,bt-fmd-clk-gpio = <&pm8550ve_f_gpios 0x06 0x00>;
+		qcom,bt-sw-ctrl-gpio = <&tlmm 0x12 0x00>;
+		qcom,wl-reset-gpio = <&tlmm 0x10 0x00>;
+		mpm_wake_set_gpios = <0x12 0x09>;
+		pinctrl-2 = <&bt_fmd_clk_en>;
+		pinctrl-1 = <&cnss_bt_sw_ctrl>;
+		pinctrl-0 = <&bt_uwb_en>;
+		pinctrl-names = "bt_uwb_en", "sw_ctrl", "bt_fmd_clk_en";
+		qcom,peach-bt;
+		clock-names = "bt_rf_clk1";
+		clocks = <&rpmhcc 0x06>;
+		nvmem-cell-names = "fmd_set", "fmd_chg_pon", "fmd_cnt2_stop";
+		nvmem-cells = <&fmd_set &fmd_chg_pon &fmd_cnt2_stop>;
+		compatible = "qcom,peach-bt";
+	};
+};
+
+&swr4 {
+	btswr_slave: btswr-slave {
+		reg = <0x02 0x8170220>;
+		compatible = "qcom,btfmswr_slave";
+	};
+};
+
+&qupv3_se14_4uart {
+	status = "ok";
+};
+
+&qupv3_se13_q2spi {
+	status = "ok";
+};

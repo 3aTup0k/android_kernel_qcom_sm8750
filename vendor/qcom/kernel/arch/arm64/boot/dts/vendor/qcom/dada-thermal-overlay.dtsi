@@ -1,0 +1,244 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2025 The LineageOS Project
+ */
+
+&thermal_zones {
+	cpu_therm {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x144>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	flash_therm {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x145>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	wifi_therm {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x146>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	pa_therm0 {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x147>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	wireless_therm {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x148>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	charger_therm0 {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x74d>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	conn_therm {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x747>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	display_therm {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x149>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	pa_therm1 {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x14a>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	conn_therm2 {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x14b>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+
+	quiet_therm {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmk8550_vadc 0x74a>;
+
+		trips {
+
+			active-config0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+
+			active-config1 {
+				temperature = <0x1e848>;
+				hysteresis = <0x3e8>;
+				type = "passive";
+			};
+		};
+	};
+};
+
+&soc {
+	thermal-message {
+		board-sensor = "VIRTUAL-SENSOR0";
+	};
+};

@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2025 The LineageOS Project
+ */
+
+#include "dada-pinctrl.dtsi"
+#include "dada-pmic-overlay.dtsi"
+#include "dada-board.dtsi"
+#include "dada-charger.dtsi"
+#include "dada-fingerprint.dtsi"
+#include "dada-touch.dtsi"
+#include "dada-nfc.dtsi"
+#include "dada-thermal-overlay.dtsi"
+#include "dada-usb.dtsi"
+#include "dada-wlan.dtsi"
+#include "dada-sde-display.dtsi"
+#include "dada-bluetooth.dtsi"
+#include "dada-lpi.dtsi"
+#include "dada-audio.dtsi"
+#include "dada-camera-sensor.dtsi"

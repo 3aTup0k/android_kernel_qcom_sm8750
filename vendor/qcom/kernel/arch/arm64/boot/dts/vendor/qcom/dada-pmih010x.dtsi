@@ -1,0 +1,498 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2025 The LineageOS Project
+ */
+
+&spmi_bus {
+	#address-cells = <0x02>;
+	#size-cells = <0x00>;
+	interrupt-controller;
+	#interrupt-cells = <0x04>;
+
+	qcom,pmih010x@7 {
+		compatible = "qcom,spmi-pmic";
+		reg = <0x07 0x00>;
+		#address-cells = <0x01>;
+		#size-cells = <0x00>;
+
+		pmic-ecid@100 {
+			compatible = "qcom,pmic-ecid";
+			reg = <0x100>;
+			qcom,pmic-name = "pmih010x";
+		};
+
+		pmih010x_tz: pmih010x-temp-alarm@a00 {
+			compatible = "qcom,spmi-temp-alarm";
+			reg = <0xa00>;
+			interrupts = <0x07 0x0a 0x00 0x03>;
+			#thermal-sensor-cells = <0x00>;
+			io-channels = <&pmk8550_vadc 0x703>;
+			io-channel-names = "thermal";
+		};
+
+		pmih010x_lite_tz: pmih010x-temp-alarm-lite@c00 {
+			compatible = "qcom,spmi-temp-alarm";
+			reg = <0xc00>;
+			interrupts = <0x07 0x0c 0x00 0x03>;
+			#thermal-sensor-cells = <0x00>;
+			io-channels = <&pmk8550_vadc 0x718>;
+			io-channel-names = "thermal";
+		};
+
+		pmih010x_gpios: pinctrl@8800 {
+			compatible = "qcom,pmih010x-gpio";
+			reg = <0x8800>;
+			gpio-controller;
+			#gpio-cells = <0x02>;
+			interrupt-controller;
+			#interrupt-cells = <0x02>;
+
+			slave_batt_det {
+
+				slave_batt_det_default: slave_batt_det_default {
+					pins = "gpio2";
+					function = "gpio";
+					input-enable;
+					bias-pull-up;
+				};
+			};
+
+			quiet_therm {
+
+				quiet_therm_default: quiet_therm_default {
+					pins = "gpio6";
+					bias-high-impedance;
+				};
+			};
+		};
+
+		pmih010x_eusb2_repeater: eusb2-repeater@fd00 {
+			compatible = "qcom,pmic-eusb2-repeater";
+			reg = <0xfd00>;
+			vdd18-supply = <&pm_humu_l15>;
+			vdd3-supply = <&pm_humu_l5>;
+			qcom,param-override-seq = <0x00 0x50 0x0a 0x51 0x01 0x52 0x01 0x53 0x03 0x54 0x03 0x55 0x00 0x56 0x03 0x57 0x02 0x58 0x03 0x59 0x01 0x5a 0x02 0x5b>;
+			qcom,host-param-override-seq = <0x00 0x50 0x0f 0x51 0x05 0x52 0x07 0x53 0x03 0x54 0x03 0x55 0x00 0x56 0x03 0x57 0x02 0x58 0x03 0x59 0x01 0x5a 0x02 0x5b>;
+		};
+
+		pmih010x_haptics: qcom,hv-haptics@f000 {
+			qcom,rev_t_lra_us = <0x46>;
+			qcom,lra-f0-cal-count = <0x23a>;
+			qcom,lra-f0-default = <0xaa>;
+			qcom,lra-f0-max = <0xb4>;
+			qcom,lra-f0-min = <0xa0>;
+			qcom,f0-vmax-mv = <2100>;
+			qcom,custom_vmax_mv = <0x2008>;
+			status = "ok";
+			compatible = "qcom,hv-haptics";
+			reg = <0xf000 0xf100 0xf200>;
+			interrupts = <0x07 0xf0 0x01 0x01>;
+			interrupt-names = "fifo-empty";
+			qcom,vmax-mv = <2050>;
+			qcom,lra-period-us = <5882>;
+			qcom,brake-mode = <0x01>;
+			qcom,brake-pattern = [ff 3f 1f];
+			qcom,drv-sig-shape = <0x01>;
+			qcom,brake-sig-shape = <0x01>;
+			qcom,rt-imp-detect;
+			nvmem-names = "hap_cfg_sdam";
+			nvmem = <&pmk8550_sdam_46>;
+
+			hap_swr_slave_reg: qcom,hap-swr-slave-reg {
+				regulator-name = "hap-swr-slave-reg";
+			};
+
+			effect_0 {
+				qcom,effect-id = <0x00>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = <0x7f7f7f7f>;
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			effect_1 {
+				qcom,effect-id = <0x01>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f 7f 7f 7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			effect_2 {
+				qcom,effect-id = <0x02>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			effect_3 {
+				qcom,effect-id = <0x03>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			effect_4 {
+				qcom,effect-id = <0x04>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			effect_5 {
+				qcom,effect-id = <0x05>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f 7f 7f 7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			primitive_0 {
+				qcom,primitive-id = <0x00>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = <0x00>;
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			primitive_1 {
+				qcom,primitive-id = <0x01>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			primitive_2 {
+				qcom,primitive-id = <0x02>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			primitive_3 {
+				qcom,primitive-id = <0x03>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			primitive_4 {
+				qcom,primitive-id = <0x04>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			primitive_5 {
+				qcom,primitive-id = <0x05>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			primitive_6 {
+				qcom,primitive-id = <0x06>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			primitive_7 {
+				qcom,primitive-id = <0x07>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+
+			primitive_8 {
+				qcom,primitive-id = <0x08>;
+				qcom,wf-vmax-mv = <3600>;
+				qcom,wf-fifo-preload;
+				qcom,wf-fifo-data = [7f 7f];
+				qcom,wf-fifo-period = <0x00>;
+				qcom,wf-auto-res-disable;
+				qcom,wf-brake-disable;
+			};
+		};
+
+		pmih010x_bcl: bcl@4700 {
+			compatible = "qcom,bcl-v5";
+			reg = <0x4700 0x100>;
+			interrupts = <0x07 0x47 0x00 0x00 0x07 0x47 0x01 0x00 0x07 0x47 0x02 0x00>;
+			interrupt-names = "bcl-lvl0", "bcl-lvl1", "bcl-lvl2";
+			qcom,pmic7-threshold;
+			#thermal-sensor-cells = <0x01>;
+		};
+
+		pmih010x_bcl2: bcl@4900 {
+			compatible = "qcom,bcl-v5";
+			reg = <0x4900 0x100>;
+			interrupts = <0x07 0x49 0x00 0x00 0x07 0x49 0x01 0x00 0x07 0x49 0x02 0x00>;
+			interrupt-names = "bcl-lvl0", "bcl-lvl1", "bcl-lvl2";
+			qcom,pmic7-threshold;
+			#thermal-sensor-cells = <0x01>;
+			status = "disabled";
+		};
+
+		bcl_soc: bcl-soc {
+			compatible = "qcom,msm-bcl-soc";
+			#thermal-sensor-cells = <0x00>;
+		};
+	};
+};
+
+&thermal_zones {
+	pmih010x_temp_alarm: pmih010x_tz {
+		polling-delay-passive = <0x64>;
+		polling-delay = <0x00>;
+		thermal-governor = "step_wise";
+		thermal-sensors = <&pmih010x_tz>;
+
+		trips {
+
+			pmih010x_trip0: trip0 {
+				temperature = <0x17318>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			pmih010x_trip1: trip1 {
+				temperature = <0x1c138>;
+				hysteresis = <0x00>;
+				type = "hot";
+			};
+
+			pmih010x_trip2: trip2 {
+				temperature = <0x23668>;
+				hysteresis = <0x00>;
+				type = "critical";
+			};
+		};
+	};
+
+	pmih010x_lite_temp_alarm: pmih010x_lite_tz {
+		polling-delay-passive = <0x64>;
+		polling-delay = <0x00>;
+		thermal-governor = "step_wise";
+		thermal-sensors = <&pmih010x_lite_tz>;
+
+		trips {
+
+			pmih010x_lite_trip0: trip0 {
+				temperature = <0x1e848>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			pmih010x_lite_trip1: trip1 {
+				temperature = <0x20f58>;
+				hysteresis = <0x00>;
+				type = "hot";
+			};
+
+			pmih010x_lite_trip2: trip2 {
+				temperature = <0x23668>;
+				hysteresis = <0x00>;
+				type = "critical";
+			};
+		};
+	};
+
+	pmih010x-ibat-lvl0 {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmih010x_bcl 0x00>;
+
+		trips {
+
+			ibat_lvl0: ibat-lvl0 {
+				temperature = <0x34bc>;
+				hysteresis = <0xc8>;
+				type = "passive";
+			};
+		};
+	};
+
+	pmih010x-ibat-lvl1 {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmih010x_bcl 0x01>;
+
+		trips {
+
+			ibat_lvl1: ibat-lvl1 {
+				temperature = <0x3a98>;
+				hysteresis = <0xc8>;
+				type = "passive";
+			};
+		};
+	};
+
+	vbat {
+		polling-delay-passive = <0x00>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmih010x_bcl 0x02>;
+
+		trips {
+
+			vbat_lvl0: vbat-lvl0 {
+				temperature = <0xaf0>;
+				hysteresis = <0x64>;
+				type = "passive";
+			};
+
+			vbat_lvl1: vbat-lvl1 {
+				temperature = <0xa28>;
+				hysteresis = <0x64>;
+				type = "passive";
+			};
+
+			vbat_lvl2: vbat-lvl2 {
+				temperature = <0x8fc>;
+				hysteresis = <0x64>;
+				type = "passive";
+			};
+		};
+	};
+
+	pmih010x-bcl-lvl0 {
+		polling-delay-passive = <0x32>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmih010x_bcl 0x05>;
+
+		trips {
+
+			thermal-engine-trip {
+				temperature = <0x64>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			thermal-hal-trip {
+				temperature = <0x64>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			b_bcl_lvl0: b-bcl-lvl0 {
+				temperature = <0x01>;
+				hysteresis = <0x01>;
+				type = "passive";
+			};
+		};
+	};
+
+	pmih010x-bcl-lvl1 {
+		polling-delay-passive = <0x32>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmih010x_bcl 0x06>;
+
+		trips {
+
+			thermal-engine-trip {
+				temperature = <0x64>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			thermal-hal-trip {
+				temperature = <0x64>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			b_bcl_lvl1: b-bcl-lvl1 {
+				temperature = <0x01>;
+				hysteresis = <0x01>;
+				type = "passive";
+			};
+		};
+	};
+
+	pmih010x-bcl-lvl2 {
+		polling-delay-passive = <0x32>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&pmih010x_bcl 0x07>;
+
+		trips {
+
+			thermal-engine-trip {
+				temperature = <0x64>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			thermal-hal-trip {
+				temperature = <0x64>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			b_bcl_lvl2: b-bcl-lvl2 {
+				temperature = <0x01>;
+				hysteresis = <0x01>;
+				type = "passive";
+			};
+		};
+	};
+
+	socd {
+		polling-delay-passive = <0x64>;
+		polling-delay = <0x00>;
+		thermal-sensors = <&bcl_soc>;
+
+		trips {
+
+			thermal-engine-trip {
+				temperature = <0x64>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+
+			thermal-hal-trip {
+				temperature = <0x64>;
+				hysteresis = <0x00>;
+				type = "passive";
+			};
+		};
+	};
+};

@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2023-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2025 The LineageOS Project
+ */
+
+dsi_sim_sec_hd_cmd: qcom,mdss_dsi_sim_sec_hd_cmd {
+	qcom,ulps-enabled;
+	qcom,dsi-select-sec-clocks = "pll_byte_clk1", "pll_dsi_clk1";
+	qcom,mdss-dsi-mdp-trigger = "none";
+	qcom,mdss-dsi-dma-trigger = "trigger_sw";
+	qcom,mdss-dsi-post-init-delay = <0x01>;
+	qcom,mdss-dsi-tx-eot-append;
+	qcom,mdss-dsi-reset-sequence = <0x01 0x0a 0x00 0x0a 0x01 0x0a>;
+	qcom,mdss-dsi-lane-3-state;
+	qcom,mdss-dsi-lane-2-state;
+	qcom,mdss-dsi-lane-1-state;
+	qcom,mdss-dsi-lane-0-state;
+	qcom,mdss-dsi-bllp-power-mode;
+	qcom,mdss-dsi-bllp-eof-power-mode;
+	qcom,mdss-dsi-te-using-te-pin;
+	qcom,mdss-dsi-te-check-enable;
+	qcom,mdss-dsi-te-dcs-command = <0x01>;
+	qcom,mdss-dsi-te-pin-select = <0x01>;
+	qcom,mdss-dsi-te-using-wd;
+	qcom,panel-ack-disabled;
+	qcom,mdss-dsi-traffic-mode = "burst_mode";
+	qcom,mdss-dsi-border-color = <0x00>;
+	qcom,mdss-dsi-underflow-color = <0xff>;
+	qcom,mdss-dsi-bpp = <0x18>;
+	qcom,mdss-dsi-stream = <0x00>;
+	qcom,mdss-dsi-virtual-channel-id = <0x00>;
+	qcom,dsi-sec-phy-num = <0x01>;
+	qcom,dsi-sec-ctrl-num = <0x01>;
+	qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
+	qcom,mdss-dsi-panel-name = "sim hd command mode secondary dsi panel";
+
+	qcom,mdss-dsi-display-timings {
+
+		timing@0 {
+			qcom,partial-update-enabled = "single_roi";
+			qcom,panel-roi-alignment = <0x2d0 0x28 0x2d0 0x28 0x2d0 0x28>;
+			qcom,default-topology-index = <0x00>;
+			qcom,display-topology = <0x01 0x00 0x01>;
+			qcom,mdss-dsi-panel-phy-timings = [00 10 04 04 12 1e 04 04 03 02 04 00 0e 09];
+			qcom,mdss-dsi-off-command-state = "dsi_lp_mode";
+			qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
+			qcom,mdss-dsi-off-command = [05 01 00 00 78 00 02 28 00 05 01 00 00 78 00 02 10 00];
+			qcom,mdss-dsi-on-command = <0x5010000 0xf0000100>;
+			qcom,mdss-dsi-panel-framerate = <0x3c>;
+			qcom,mdss-dsi-v-bottom-border = <0x00>;
+			qcom,mdss-dsi-v-top-border = <0x00>;
+			qcom,mdss-dsi-h-right-border = <0x00>;
+			qcom,mdss-dsi-h-left-border = <0x00>;
+			qcom,mdss-dsi-h-sync-pulse = <0x00>;
+			qcom,mdss-dsi-v-pulse-width = <0x02>;
+			qcom,mdss-dsi-v-front-porch = <0x0c>;
+			qcom,mdss-dsi-v-back-porch = <0x02>;
+			qcom,mdss-dsi-h-sync-skew = <0x00>;
+			qcom,mdss-dsi-h-pulse-width = <0x0c>;
+			qcom,mdss-dsi-h-back-porch = <0x3c>;
+			qcom,mdss-dsi-h-front-porch = <0x78>;
+			qcom,mdss-dsi-panel-height = <0x500>;
+			qcom,mdss-dsi-panel-width = <0x2d0>;
+			cell-index = <0x00>;
+		};
+	};
+};

@@ -1,0 +1,35 @@
+/***************************************************************
+** Copyright (C), 2025, OPLUS Mobile Comm Corp., Ltd
+**
+** Description : panel ac274 common config
+** Version : NA
+** Date : 2025/01/22
+** Author : Oplus Display
+******************************************************************/
+
+				qcom,dsi-panel-date-switch-command = [
+					/*read panel info switch page 01*/
+					39 00 00 00 00 00 06 F0 55 AA 52 08 01
+				];
+
+				qcom,mdss-dsi-default-switch-page-command = [
+					39 00 00 00 00 00 06 F0 55 AA 52 08 00
+				];
+
+				qcom,mdss-dsi-vid-120hz-switch-command = [
+					15 00 00 20 00 00 02 2F 01
+				];
+
+				qcom,mdss-dsi-vid-90hz-switch-command = [
+					15 00 00 10 00 00 02 2F 02
+				];
+
+				qcom,mdss-dsi-vid-60hz-switch-command = [
+					15 00 00 10 00 00 02 2F 03
+				];
+
+				qcom,dsi-panel-date-switch-command-state = "dsi_lp_mode";
+				qcom,mdss-dsi-default-switch-page-command-state = "dsi_lp_mode";
+				qcom,mdss-dsi-vid-120hz-switch-command-state = "dsi_lp_mode";
+				qcom,mdss-dsi-vid-90hz-switch-command-state = "dsi_lp_mode";
+				qcom,mdss-dsi-vid-60hz-switch-command-state = "dsi_lp_mode";
