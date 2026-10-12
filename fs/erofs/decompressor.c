@@ -15,22 +15,43 @@
 #define LZ4_MAX_DISTANCE_PAGES	(DIV_ROUND_UP(LZ4_DISTANCE_MAX, PAGE_SIZE) + 1)
 #ifndef LZ4_DECOMPRESS_INPLACE_MARGIN
 /*
- * TEST PATCH: force the docopy path for LZ4 inplace decompression.
+ * LZ4 inplace decompression margin.
  *
- * The stock HyperOS 4 kernel has this as a *function*
- * (z_erofs_get_lz4_decompress_inplace_margin, with a __setup boot
- * parameter) rather than this upstream constant. When the margin here
- * is smaller than what stock requires, the inplace path is taken more
- * often, and LZ4 can overwrite source bytes it has not read yet.
+ * Upstream Linux uses (((srcsize) >> 8) + 32). On this kernel that value
+ * corrupts reads: /system/lib64/libminikin.so came back 2409 bytes short of
+ * correct (offsets 0x754fd..0x75fcd, inside .eh_frame/.eh_frame_hdr), which
+ * crashes minikin::FontFamily::FontFamily and puts system_server into a
+ * crashloop.
  *
- * Making the margin ~0U guarantees
- *     omargin < LZ4_DECOMPRESS_INPLACE_MARGIN(...)
- * is always true, so z_erofs_lz4_handle_overlap() always goes to
- * docopy (the per-CPU buffer, i.e. the safe path). If this fixes the
- * libminikin.so read, the margin is the root cause.
+ * The margin decides whether LZ4 may decompress inplace - output written
+ * into the same buffer, overwriting compressed source bytes that have not
+ * been read yet - or must take the safe docopy path:
+ *
+ *     if (... || omargin < LZ4_DECOMPRESS_INPLACE_MARGIN(rq->inputsize))
+ *             goto docopy;
+ *
+ * So a larger margin means docopy more often, which is safe but copies.
+ *
+ * Measured on device, oracle = md5sum /system/lib64/libminikin.so:
+ *
+ *     value                     result
+ *     (srcsize >> 8) + 32       bf99ed78...  corrupted
+ *     (srcsize >> 2) + 32       3b3f0ed6...  correct, boots   <- this
+ *     ~0U                       3b3f0ed6...  correct, boots   (all copy)
+ *
+ * Stock HyperOS 4 has this as a function with a __setup boot parameter
+ * (z_erofs_get_lz4_decompress_inplace_margin), so the exact value is
+ * runtime-configurable there. It could not be recovered: in the stock
+ * image there are no call sites and no address references to that symbol,
+ * so its body is not reachable to read. The value here was found by
+ * measurement instead.
+ *
+ * The safe range is known to lie between >> 8 (corrupts) and >> 2 (works).
+ * It is not narrowed further, because the remaining candidates each cost a
+ * build and flash, and >> 2 is the coarsest value that works. ~0U also
+ * works but forces every pcluster through the copy path.
  */
-#define LZ4_DECOMPRESS_INPLACE_MARGIN(srcsize)  (~0U)
-#endif
+#define LZ4_DECOMPRESS_INPLACE_MARGIN(srcsize)  (((srcsize) >> 2) + 32)
 
 struct z_erofs_lz4_decompress_ctx {
 	struct z_erofs_decompress_req *rq;
