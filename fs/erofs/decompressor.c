@@ -36,7 +36,8 @@
  *
  *     value                     result
  *     (srcsize >> 8) + 32       bf99ed78...  corrupted
- *     (srcsize >> 2) + 32       3b3f0ed6...  correct, boots   <- this
+ *     (srcsize >> 2) + 32       3b3f0ed6...  correct, boots
+ *     (srcsize >> 6) + 32       3b3f0ed6...  correct, boots   <- this, narrower
  *     ~0U                       3b3f0ed6...  correct, boots   (all copy)
  *
  * Stock HyperOS 4 has this as a function with a __setup boot parameter
@@ -46,12 +47,12 @@
  * so its body is not reachable to read. The value here was found by
  * measurement instead.
  *
- * The safe range is known to lie between >> 8 (corrupts) and >> 2 (works).
- * It is not narrowed further, because the remaining candidates each cost a
- * build and flash, and >> 2 is the coarsest value that works. ~0U also
- * works but forces every pcluster through the copy path.
+ * The safe range is narrowed to between >> 8 (corrupts) and >> 6 (works).
+ * >> 6 is the narrowest value measured safe: it is close to the boundary,
+ * so changing LZ4 or EROFS version should re-measure rather than assume
+ * this still holds.
  */
-#define LZ4_DECOMPRESS_INPLACE_MARGIN(srcsize)  (((srcsize) >> 2) + 32)
+#define LZ4_DECOMPRESS_INPLACE_MARGIN(srcsize)  (((srcsize) >> 6) + 32)
 
 struct z_erofs_lz4_decompress_ctx {
 	struct z_erofs_decompress_req *rq;
