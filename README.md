@@ -266,6 +266,12 @@ See `apex-patches/README.md`.
 neutral against its own on/off control at fixed thermal state (1829/8235 off vs
 1827/8177 on), so it is carried as a control, not as a performance claim.
 
+BORE also only published its minimum preemption slice in debugfs, which stock
+Android does not mount. v1.2 adds `min_base_slice_ns` (writable) and
+`base_slice_ns` (the effective value) to the BORE sysctls so a tuner can reach
+them with no mount; the tick quantisation this exposes is documented in
+`apex-patches/README.md`.
+
 **Droidspaces.** The `sysvipc` KABI fix and the ghost-task NULL check, plus the
 seven config options the container runtime needs (`CONFIG_SYSVIPC`,
 `CONFIG_DEVTMPFS`, `CONFIG_PID_NS`, `CONFIG_POSIX_MQUEUE`, and three

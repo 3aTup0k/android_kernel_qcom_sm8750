@@ -139,7 +139,8 @@ AOSP `android15-6.6` 6.6.139 tree. 188 files. Verify it with:
 git apply --check apex-patches/combined/apex-foundry-all.patch
 ```
 
-It predates the patches above. Regenerate it if you need it current.
+It predates the patches above. Regenerate it if you need it current; as it
+stands it does not include `bore/sysctl_min_base_slice.patch` either.
 ## bore/
 
 `bore.patch` — the Burst-Oriented Response Enhancer CPU scheduler, from
@@ -147,34 +148,46 @@ It predates the patches above. Regenerate it if you need it current.
 (BORE 5.9.7, Masahito Suzuki). It originated on the LineageOS QCOM sm8750 base
 and was carried along by the rebase.
 
-**It is currently NOT applied.** Stock HyperOS 4 has no BORE at all:
+**Status: applied.** `CONFIG_SCHED_BORE=y`, re-enabled in commit `ae5ddacaaea3`
+("sched: re-enable BORE, and fix a null-check in the memfd ashmem shim"). The
+tree carries it: `kernel/sched/bore.c` is byte for byte what `bore.patch`
+produces. That was checked with a script, not assumed.
 
-- no `sched_bore`, `sched_burst_*` or `reset_task_bore` in its kallsyms
-- it *does* still have `sched_update_scaling()` and
-  `normalized_sysctl_sched_base_slice`, which BORE's `#else` branch compiles out
+It is a one-way port. Reverse-applying `bore.patch` does not work cleanly:
+`kernel/sched/core.c` diverges, and by the record above three hunks were
+finished by hand (`fair.c` tunable-scaling block, `core.c` `sched_bore_init()`
+call block, and `include/linux/sched/bore.h`, which the local tree had modified
+to guard `BORE_MIN_BASE_SLICE_NS` behind `#ifndef`).
 
-and the difference is not cosmetic. With BORE the minimal preemption slice is
+### sysctl_min_base_slice.patch — our delta, not from palazik
 
-```
-nsecs_per_tick * max(1, DIV_ROUND_UP(sysctl_sched_min_base_slice, nsecs_per_tick))
-```
+BORE publishes every knob at `/proc/sys/kernel/` via
+`register_sysctl_init("kernel", sched_bore_sysctls)` - except the minimum
+preemption slice, which only ever existed in debugfs
+(`/sys/kernel/debug/sched/min_base_slice_ns`, `kernel/sched/debug.c`). Stock
+Android does not mount debugfs, so userspace cannot reach it. That is the whole
+reason this delta exists.
 
-which on an 8-CPU HZ-250 system is `4 ms * 1 = 4 ms`. Stock runs the EEVDF
-`SCHED_TUNABLESCALING_LOG` path instead and gets `0.7 ms * (1 + ilog2(8)) = 2.8 ms`.
+It adds two entries to `sched_bore_sysctls[]`:
 
-It is currently APPLIED (CONFIG_SCHED_BORE=y, see commit ae5ddacaaea3 "sched:
-re-enable BORE, and fix a null-check in the memfd ashmem shim"). The patch is
-kept here because applying it again is not a clean reverse-apply: three hunks
-must be finished by hand (`fair.c` tunable-scaling block, `core.c`
-`sched_bore_init()` call block, and the whole of
-`include/linux/sched/bore.h`, which the local tree had modified to guard
-`BORE_MIN_BASE_SLICE_NS` behind `#ifndef`).
+- `min_base_slice_ns` (0644) - the request. Its handler calls
+  `sched_update_min_base_slice()`; without that, writing the variable would not
+  take effect until the next recompute, which is exactly what the debugfs file
+  does.
+- `base_slice_ns` (0444) - the value the scheduler actually uses.
 
-Re-apply with:
+The second one keeps the first honest. BORE rounds the request up to a whole
+tick:
 
-    cd <kernel tree>
-    git am apex-patches/bore/bore.patch
-    # then finish by hand: fair.c, core.c, include/linux/sched/bore.h
+    sysctl_sched_base_slice = nsecs_per_tick *
+        max(1, DIV_ROUND_UP(sysctl_sched_min_base_slice, nsecs_per_tick))
+
+and at `CONFIG_HZ=250` a tick is 4 ms. So the request is quantised to 4 ms and
+cannot go below it: 2 ms and 4 ms both produce a 4 ms base slice, and only a
+request above 4 ms changes anything. `base_slice_ns` exposes that, so a tuner can
+show the effective value instead of the requested one.
+
+It applies on top of a tree that already carries `bore.patch`.
 
 ## erofs-margin/
 

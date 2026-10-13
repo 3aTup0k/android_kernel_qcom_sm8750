@@ -11,7 +11,7 @@ import subprocess
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # Number of tracked .patch files under apex-patches/. Bump it when adding one.
-EXPECTED_PATCHES = 44
+EXPECTED_PATCHES = 45
 
 # (label, markers, where)
 CHECKS = [
@@ -19,6 +19,8 @@ CHECKS = [
     ('adios obj',            ['adios'], 'block/Makefile'),
     ('BORE (Kconfig)',       ['config SCHED_BORE'], 'init/Kconfig'),
     ('BORE (code)',          ['sched_burst_penalty_scale'], 'kernel/sched/bore.c'),
+    ('BORE min-slice sysctl', ['"min_base_slice_ns"'], 'kernel/sched/bore.c'),
+    ('BORE base-slice sysctl', ['"base_slice_ns"'], 'kernel/sched/bore.c'),
     ('ksu',                  ['CONFIG_KSU='], 'arch/arm64/configs/gki_defconfig'),
     ('ksu obj',              ['kernelsu'], 'drivers/Makefile'),
     ('ksu upstream marker',  ['welcome to KernelSU version'], 'drivers/kernelsu/core/init.c'),

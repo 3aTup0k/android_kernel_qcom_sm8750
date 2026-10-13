@@ -40,6 +40,16 @@ not.
   additions here (ADIOS as the default I/O scheduler, and BORE). No kernel-side
   battery or heat win is claimed, because none was measured. The audit is in
   `findings/POWER_THERMAL_AUDIT.md`.
+- **`min_base_slice_ns` and `base_slice_ns` are now sysctls.** BORE exposed every
+  knob under `/proc/sys/kernel/` via `register_sysctl_init` except the minimum
+  preemption slice, which only ever existed in debugfs - and stock Android does
+  not mount debugfs, so nothing in userspace could reach it. Both are now in
+  `sched_bore_sysctls[]` (`apex-patches/bore/sysctl_min_base_slice.patch`).
+  `min_base_slice_ns` (0644) calls `sched_update_min_base_slice()` on write,
+  exactly as the debugfs file did. `base_slice_ns` (0444) is what makes the knob
+  honest: BORE rounds the request up to a whole tick, and at `CONFIG_HZ=250` a
+  tick is 4 ms, so 2 ms and 4 ms both give a 4 ms base slice and only a request
+  above 4 ms changes anything.
 
 Root: upstream KernelSU `main` + SUSFS, built in. No `init_boot.img` patching.
 

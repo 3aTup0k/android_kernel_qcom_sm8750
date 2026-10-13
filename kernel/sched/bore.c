@@ -157,6 +157,22 @@ int sched_bore_update_handler(struct ctl_table *table, int write,
 	return 0;
 }
 
+static int sched_min_base_slice_update_handler(struct ctl_table *table, int write,
+	void __user *buffer, size_t *lenp, loff_t *ppos) {
+	int ret = proc_douintvec(table, write, buffer, lenp, ppos);
+	if (ret || !write)
+		return ret;
+
+	/*
+	 * sched_update_min_base_slice() recomputes sysctl_sched_base_slice from
+	 * the new value. Writing the variable alone would not take effect until
+	 * the next recompute, which is what the debugfs file in debug.c does.
+	 */
+	sched_update_min_base_slice();
+
+	return 0;
+}
+
 #define for_each_child(p, t) \
 	list_for_each_entry(t, &(p)->children, sibling)
 
@@ -454,6 +470,27 @@ static struct ctl_table sched_bore_sysctls[] = {
 		.maxlen		= sizeof(uint),
 		.mode		= 0644,
 		.proc_handler = proc_douintvec,
+	},
+	/*
+	 * Mirror the two debugfs files debug.c creates under
+	 * /sys/kernel/debug/sched/, so a tuner can reach them without mounting
+	 * debugfs. min_base_slice_ns is the request; base_slice_ns is the value
+	 * the scheduler actually uses, which is the request rounded up to a whole
+	 * tick (4 ms at HZ=250).
+	 */
+	{
+		.procname	= "min_base_slice_ns",
+		.data		= &sysctl_sched_min_base_slice,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0644,
+		.proc_handler	= sched_min_base_slice_update_handler,
+	},
+	{
+		.procname	= "base_slice_ns",
+		.data		= &sysctl_sched_base_slice,
+		.maxlen		= sizeof(unsigned int),
+		.mode		= 0444,
+		.proc_handler	= proc_douintvec,
 	},
 };
 
