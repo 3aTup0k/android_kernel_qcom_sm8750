@@ -12,9 +12,9 @@ their original authors in the `Signed-off-by:` trailers.
 
 An earlier revision of this file recorded `clear_page_16bytes_align.patch` as
 excluded because `arch/arm64/lib/clear_page.S` was believed to differ between
-6.6 and 6.7. That was incorrect: the patch applies cleanly to this 6.6.139
-tree with no offset or fuzz, inserting `.p2align 4` ahead of
-`SYM_FUNC_START(__pi_clear_page)`. All 24 are now applied.
+6.6 and 6.7. That was incorrect: the patch applies cleanly to this tree with no
+offset or fuzz, inserting `.p2align 4` ahead of
+`SYM_FUNC_START(__pi_clear_page)`. All 24 are applied.
 
 ## ntsync/
 
@@ -46,23 +46,47 @@ normalization.
 
 ## sukisu-ultra/
 
-Root and stealth. `50_add_susfs_in_gki-android15-6.6.patch` is the kernel-side
-SUSFS integration for the `builtin` branch, byte for byte what
-[simonpunk/susfs4ksu](https://github.com/simonpunk/susfs4ksu) ships for
+**Legacy. Used through v1.1 only; v1.2 does not use this.** Kept for reference.
+
+Root and stealth for SukiSU Ultra. `50_add_susfs_in_gki-android15-6.6.patch` is
+the kernel-side SUSFS integration for the `builtin` branch, byte for byte what
+[simonpunk/susfs4ksu](https://gitlab.com/simonpunk/susfs4ksu) ships for
 `gki-android15-6.6`. `sukisu_apex_fixes.patch` carries source fixes and a
 version pin.
 
 ### sukisu-ultra/main/
 
-For building against SukiSU Ultra's `main` branch, which is what v1.1 uses.
-`main` reports KSU UAPI 5 where `builtin` is stuck at 2, and 2 was what people
-reported as too old. It does not build SUSFS in, so SUSFS comes from here
-instead.
+What v1.1 built against: SukiSU Ultra's `main` branch. `main` reports KSU UAPI 5
+where `builtin` is stuck at 2, and 2 was what people reported as too old. It
+does not build SUSFS in, so SUSFS came from here instead.
 
 `10_enable_susfs_for_ksu-main.patch` is upstream `susfs4ksu` plus five
 corrections, each explained in that directory's README. Both patches apply to a
 clean `origin/main` with no failures, and the result was compared file by file
 against the tree that produced the tested image: 28 files, no differences.
+
+## kernelsu/
+
+**This is what v1.2 uses.** The driver is upstream
+[`tiann/KernelSU`](https://github.com/tiann/KernelSU) `main`, with SUSFS grafted
+in from `susfs4ksu`'s `gki-android15-6.6` tree.
+
+The swap was forced by SUSFS, not by taste: it is a patch set and is only kept
+against one root implementation at a time, and by v1.2 `susfs4ksu` had moved to
+upstream KernelSU. Upstream is also the base the patch records as its pre-image
+(`kernel/Kbuild` blob `6c92a013`), so `10_enable_susfs_for_ksu.patch` applies
+with 0 of 97 hunks failing.
+
+KernelSU-Next `dev`, the original plan, was rejected on evidence: it has no
+in-tree SUSFS. It vendors SUSFS as its own loadable module and the KSU core
+calls into it, so it cannot provide "KSU plus built-in SUSFS".
+
+Both susfs4ksu patches, the reproduction steps, and the three build fixes -
+`selinux_hide.c` (a `-Werror,-Wpointer-bool-conversion` on tests around real
+functions, plus an `else` branch calling a `static` symbol), the `Kbuild`
+version fallback (kleaf has no `.git`, so the manager read the sentinel 16), and
+the SukiSU-only `__ksu_is_allow_uid_for_current` declaration in `fs/exec.c` -
+are documented in `kernelsu/README.md`.
 
 ## isa/
 
@@ -190,3 +214,31 @@ kernel yet, so the patch says so instead of inventing one.
 Note the patch is standalone - it applies to `LineageOS/android_kernel_qcom_sm8750`
 at ca252d6aebd3, and to any tree carrying the same
 `fs/erofs/decompressor.c`.
+
+### v1.2 narrows the margin to `>> 6`
+
+v1.1 used `(srcsize >> 2) + 32` (commit 87685b4af1cb). It booted, but it is
+wider than it needs to be, so it forces more clusters down the `docopy` path
+than necessary and costs read performance. v1.2 uses `(srcsize >> 6) + 32`
+(commit 95279db1c1aa).
+
+The safe band is now bounded on both sides by measurement:
+
+| Margin | Result |
+|---|---|
+| `(srcsize >> 8) + 32` | upstream value; corrupts `/system/lib64/libminikin.so` (md5 `bf99ed78...`), device crashloops |
+| `(srcsize >> 2) + 32` | v1.1; boots, oracle reads `3b3f0ed6...`, but wider than needed |
+| `(srcsize >> 6) + 32` | v1.2; boots, oracle reads `3b3f0ed6...` |
+
+The oracle is `adb shell su 0 md5sum /system/lib64/libminikin.so`, whose correct
+value is `3b3f0ed661cc9a5ffcfdcd4dc866ea86`, measured on the stock vendor_boot
+(md5 `49193512e0e1ef61d0ab9efbdcc53524`). `>> 6` is the most inplace use per
+pcluster measured safe, and nothing beyond that is claimed. The build of `>> 6`
+was confirmed booting on device by the maintainer.
+
+Everything from `>> 8` through `>> 6` is still a guess at the *stock* value.
+Stock's `fs/erofs/decompressor.c` has this as a function with a `__setup` boot
+parameter (`z_erofs_get_lz4_decompress_inplace_margin`) rather than a constant,
+and that function has not been read off the running stock kernel. Porting it is
+the proper end state; until then these are measured constants, not the stock
+ones.

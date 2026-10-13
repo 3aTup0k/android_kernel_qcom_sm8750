@@ -2,10 +2,11 @@
 
 Custom GKI kernel for the **Xiaomi 15** (codename `dada`, SM8750 / Snapdragon 8 Elite).
 
-Builds against Google's Android Generic Kernel Image **6.6.139** (branch `android15-6.6`)
-and runs the device's **stock vendor modules unmodified**.
+Builds on the LineageOS `android_kernel_qcom_sm8750` tree at **6.6.144**
+(ASB-2026-10-05, GKI branch `android15-6.6`) and runs the device's
+**stock vendor modules unmodified**.
 
-Flavour: `v1.1` — SukiSU Ultra main, SUSFS, BORE, memfd ashmem shim, ADIOS, NTsync
+Flavour: `v1.2` — upstream KernelSU main, SUSFS, BORE, memfd ashmem shim, ADIOS, NTsync
 
 ---
 
@@ -45,6 +46,23 @@ compile.
 
 Once there we pinned SukiSU Ultra to a fixed commit and stopped tracking its
 branch.
+
+**v1.2 reverses that move, and the reason is the same kind of reason.** SUSFS
+is a patch set, and it is only maintained against one root implementation at a
+time. By 1.2 it had moved on: `susfs4ksu` is written against upstream
+`tiann/KernelSU`, not SukiSU Ultra. So the choice is not "which manager looks
+better" but "which root implementation still has a SUSFS that builds". The
+answer is upstream KernelSU, which is what v1.2 uses.
+
+KernelSU Next was re-examined for this and rejected on evidence, not on the
+earlier bad experience. Its `dev` branch has no in-tree SUSFS: it vendors
+SUSFS as a separate loadable module under `kernel/susfs/` and wires its KSU
+core to call into it (`susfs_supercall_init`, `susfs_kstat_init`,
+`susfs_show_version`, and about ninety more). None of those exist in
+`fs/susfs.c`, so "KernelSU Next with built-in SUSFS" is not a combination that
+branch supports. Upstream `main` is the base the patches are written against:
+its `kernel/Kbuild` blob is `6c92a013`, exactly the pre-image recorded in
+`10_enable_susfs_for_ksu.patch`, and that patch applies with zero failed hunks.
 
 ## Why a change was needed
 
@@ -110,7 +128,7 @@ repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j"$(nproc)"
 
 # point 'common' at this repository
 git -C common remote remove origin
-git -C common remote add origin https://github.com/ilertnost/android_kernel_xiaomi_sm8750.git
+git -C common remote add origin https://github.com/ilertnost/android_kernel_qcom_sm8750.git
 git -C common fetch origin lineage-23.2
 git -C common checkout lineage-23.2
 
@@ -131,17 +149,11 @@ later builds are incremental through the bazel disk cache.
 
 ```bash
 strings dist/Image | grep -m1 '^Linux version'
-# 6.6.139-4k-APEX-Foundry-v1.1
+# 6.6.144-android15-8-4k-APEX-Foundry-v1.2
 ```
 
 The version string is produced the normal way, from `CONFIG_LOCALVERSION` in
 `gki_defconfig`. Nothing overrides it and `scripts/setlocalversion` is stock.
-Verified output:
-
-```bash
-strings dist/Image | grep -m1 '^Linux version'
-# 6.6.139-android15-8-4k-APEX-Foundry-v1.1
-```
 
 Two kleaf-generated pieces go into that:
 
@@ -149,7 +161,7 @@ Two kleaf-generated pieces go into that:
   a `localversion` file in the source tree. `android_release` comes from the
   workspace `BRANCH`, `KMI_GENERATION` is AOSP's GKI KMI generation. See
   `build/kernel/kleaf/impl/stamp.bzl`, `_write_localversion`.
-- `-4k` is `CONFIG_LOCALVERSION` from `gki_defconfig`, where `-APEX-Foundry-v1.1`
+- `-4k` is `CONFIG_LOCALVERSION` from `gki_defconfig`, where `-APEX-Foundry-v1.2`
   was added.
 
 `--config=stamp` also matters. Without it, kleaf writes `-maybe-dirty` into that
@@ -164,19 +176,25 @@ whether or not the tree was dirty. On a clean tree that was a false claim. Both
 problems are gone.
 
 `UTS_RELEASE` is capped at 64 characters, so keep `CONFIG_LOCALVERSION` well
-under that. `v1.1` fits easily; the aborted `v0.2-Experimental` did not, which
+under that. `v1.2` fits easily; the aborted `v0.2-Experimental` did not, which
 is why that build shipped abbreviated as `v0.2-Exp`.
 
-SukiSU Ultra is not vendored in this repository. Fetch it at its pinned commit:
+Upstream KernelSU is vendored in this repository, under `drivers/kernelsu/`,
+at commit `0c0fdb96` of `tiann/KernelSU` `main` (2680 commits, reported as
+KSU_VERSION 32680). `drivers/uapi/` holds the matching UAPI headers.
+
+SUSFS is grafted on with the `susfs4ksu` patches for `gki-android15-6.6`:
 
 ```bash
-curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh" \
-  | bash -s 70fa0e092a2c81060823f8ae526eac14fdda2930
+# in common/, with a/kernel/ rewritten to a/drivers/kernelsu/
+patch -p1 < .../KernelSU/10_enable_susfs_for_ksu.patch
+patch -p1 < .../50_add_susfs_in_gki-android15-6.6.patch
+# 50_add_susfs does not create fs/susfs.c or the two headers - copy them in
 ```
 
-Then apply `apex-patches/sukisu-ultra/sukisu_apex_fixes.patch` and restore
-`apex-patches/sukisu-ultra/arch.h`. Full steps are in
-`apex-patches/sukisu-ultra/README.md`.
+Full steps and the three build fixes are in
+`apex-patches/kernelsu/README.md`. The earlier SukiSU Ultra material is kept
+in `apex-patches/sukisu-ultra/` for reference only; it is not used by v1.2.
 
 ## Flashing
 
@@ -196,47 +214,81 @@ adb shell 'ip -br link | grep wlan'               # expect wlan0
 
 ## Root and stealth
 
-**SukiSU Ultra**, built into the kernel, plus **SUSFS v2.3.0**. No module to
-install and no boot image patch — `uname -r` reports `APEX-Foundry-v1.1`
-and the manager talks to it directly.
+**Upstream KernelSU** (`tiann/KernelSU`, `main`) built into the kernel, plus
+**SUSFS**. No module to install and no boot image patch — `uname -r` reports
+`APEX-Foundry-v1.2` and the manager talks to it directly.
 
-From v1.1 the root implementation comes from SukiSU Ultra's `main` branch, not
-`builtin`. `main` carries KSU UAPI 5 where `builtin` is stuck at 2, and 2 was
-what people reported as too old. SUSFS is not built in on `main`, so it comes
-from the patch set in `apex-patches/sukisu-ultra/main/`, which is upstream
-`susfs4ksu` plus five corrections documented in that directory's README.
+v1.2 moved off SukiSU Ultra. The deciding fact is that SUSFS is a patch set and
+is only kept against one root implementation at a time; by 1.2 `susfs4ksu` had
+moved on to upstream KernelSU. Upstream is also the base the patch is written
+against — `kernel/Kbuild` in `tiann/KernelSU` `main` is blob `6c92a013`, exactly
+the pre-image recorded in `10_enable_susfs_for_ksu.patch` — so the patch applies
+with zero failed hunks.
 
-SukiSU's `builtin` branch carries its own ten `CONFIG_KSU_SUSFS_*` symbols, so
-no external patch was required there. That is why `builtin` was used through
-v1.0. KernelSU-Next keeps SUSFS out of tree and needs third-party patches tied
-to one exact upstream commit, and was never a candidate.
+KernelSU Next, the original plan for 1.2, was rejected on evidence: its `dev`
+branch has no in-tree SUSFS. It vendors SUSFS as its own loadable module and
+wires the KSU core to call into it, so it cannot give "KSU plus built-in SUSFS"
+at all. This is a different ground from the earlier v0.x attempt, where Next
+simply would not compile.
 
-Pinned to `70fa0e092a2c81060823f8ae526eac14fdda2930`. The branch carries no
-release tag — every tag lives on `main` and none is an ancestor of `builtin`, so
-a tag would drop the GKI integration. The commit is pinned instead.
+SUSFS is grafted on in-tree by `susfs4ksu`'s `gki-android15-6.6` patches, with
+`fs/susfs.c` and the two headers copied in (the patch does not create them).
+Three build fixes were needed and are documented, with the exact compiler
+errors, in `apex-patches/kernelsu/README.md`:
 
-Three upstream defects had to be fixed to make that commit compile; they are
-documented with error messages in `apex-patches/sukisu-ultra/FIXES.md`.
+- `feature/selinux_hide.c` tested `if (fn)` around two wrappers that are real
+  functions, not pointers. clang rejects that with
+  `-Werror,-Wpointer-bool-conversion`, and the `else` branch called a `static`
+  symbol in `services.c` that does not link.
+- `Kbuild` fell back to `KSU_VERSION=16` because kleaf builds from a sandboxed
+  copy with no `.git`. The manager reads that number, and 16 means "ancient
+  kernel". It is pinned to 32680 instead.
+- `fs/exec.c` declared `__ksu_is_allow_uid_for_current`, a SukiSU-only symbol
+  with no caller in this tree and no definition in upstream KernelSU.
 
-The reported tag is `v4.2.0-SukiSU-Ultra-42d7fda3@apexfoundry` while the
-management app shows `40959-5`, derived by SukiSU from its own commit count.
-The `5` is the KSU UAPI version and is the reason for the move to `main`; on
-`builtin` it was `2`.
+The earlier SukiSU Ultra work is kept in `apex-patches/sukisu-ultra/` for
+reference. It is not used by v1.2.
 
 ## Performance and Droidspaces
 
-**Performance — 23 patches.** Memory and scheduler hot paths, `memcmp` and
+**Performance — 24 patches.** Memory and scheduler hot paths, `memcmp` and
 `int_sqrt`, cache pressure, F2FS congestion, ext4 commit age, wakeup
-behaviour, and two patches that quiet kernel log spam.
+behaviour, and two patches that quiet kernel log spam. All 24 carry their
+measurement in `apex-patches/`; nothing is included on plausibility.
 
-One of the 24 candidate patches, `clear_page_16bytes_align`, is **not**
-included: it targets the 6.7-era `arch/arm64/lib/clear_page.S` and its single
-hunk does not apply to 6.6.139. See `apex-patches/README.md`.
+An earlier revision of the notes recorded `clear_page_16bytes_align` as
+excluded, on the belief that `arch/arm64/lib/clear_page.S` differed between 6.6
+and 6.7. That was wrong: the patch applies with no offset or fuzz, inserting
+`.p2align 4` ahead of `SYM_FUNC_START(__pi_clear_page)`, and it is applied here.
+See `apex-patches/README.md`.
+
+**BORE** is the one scheduler patch kept without a claimed gain. It measured
+neutral against its own on/off control at fixed thermal state (1829/8235 off vs
+1827/8177 on), so it is carried as a control, not as a performance claim.
 
 **Droidspaces.** The `sysvipc` KABI fix and the ghost-task NULL check, plus the
 seven config options the container runtime needs (`CONFIG_SYSVIPC`,
 `CONFIG_DEVTMPFS`, `CONFIG_PID_NS`, `CONFIG_POSIX_MQUEUE`, and three
 `CONFIG_NETFILTER_XT_*`).
+
+## Battery and heat: audited, nothing changed
+
+The power, thermal and scheduler config was compared against the stock kernel's
+`/proc/config.gz` over the whole `power`/`thermal`/`sched`/`rcu`/`idle` space.
+Exactly three keys differ, and all three are additions here: ADIOS as the
+default I/O scheduler and BORE. `HZ=250`, `NO_HZ_IDLE`, TEO+MENU, EAS,
+`schedutil`, `SCHED_AUTOGROUP` off and `RCU_LAZY_DEFAULT_OFF` all already match
+stock.
+
+The QCOM cpufreq, thermal and tsens drivers (`CONFIG_QTI_THERMAL_*`,
+`CONFIG_MSM_RPM_SMD`, `CONFIG_CPU_IDLE_GOV_QCOM_LPM`, `CONFIG_THERMAL_TSENS_LEGACY`)
+are deliberately off, as they are in stock: on SM8750 those live in the vendor
+modules. Enabling them in the kernel would fight the stock `.ko`.
+
+**No kernel-side battery or heat win is claimed, because none was measured.**
+The full audit, and the runtime experiments that could still produce one, are in
+`findings/POWER_THERMAL_AUDIT.md`. Runtime governor tuning is the honest place
+to look, not kernel patches.
 
 ## Versioning
 
@@ -248,18 +300,14 @@ Three maturity stages, named for what changes between them:
 | `v0.2 (Experimental)` | Features on trial, behaviour may change. |
 | `v1.0 (Tempered)` | Hardened by testing, for daily use. |
 | `v1.1` | Adds BORE, the memfd ashmem shim, SukiSU Ultra main. See `CHANGELOG.md`. |
+| `v1.2` | Narrows the EROFS LZ4 inplace margin to `>> 6`, and replaces SukiSU Ultra with upstream KernelSU main, SUSFS still in-tree. See `CHANGELOG.md`. |
 
 ## Known cosmetic issue
 
-The management app still reports a version mismatch against the kernel. The app
-ships from SukiSU's `module_repository` and compares against its own version,
-while this kernel pins a specific commit rather than tracking the branch tip.
-The interface is compatible — root, SUSFS and the manager all function — so only
-the number disagrees. It resolves when the app is updated upstream.
-
-v1.1 moved the reported UAPI from 2 to 5, which addresses the complaint that 2
-was too old. The mismatch itself is a manager-side comparison and could not be
-removed from the kernel.
+None that the kernel controls. v1.1 reported a version the manager disagreed
+with because it pinned a SukiSU commit rather than the branch tip. v1.2 reports
+`KSU_VERSION 32680` from upstream KernelSU's own numbering, which is what the
+upstream manager expects.
 
 ## Branch naming
 
@@ -277,21 +325,22 @@ different things:
   the community build workflows are written against 23.0-23.2, and Android 16
   is what has been verified on device.
 
-Kernel version string stays `APEX-Foundry-v1.1`; the two numbering schemes are
+Kernel version string stays `APEX-Foundry-v1.2`; the two numbering schemes are
 independent and never mixed.
 
 ## Layout
 
 | Branch | Contents |
 |---|---|
-| `lineage-23.2` | Current. KMI fix, optimizations, Droidspaces, SukiSU Ultra, SUSFS. |
+| `lineage-23.2` | Current. KMI fix, optimizations, Droidspaces, upstream KernelSU, SUSFS. |
 | `apex-foundry-v0.1-prot` | The working base, before optional features. |
 | `android15-6.6-dada` | Full upstream GKI history, kept for reference. |
 
 ## Status
 
-Verified on device: audio, Bluetooth, WLAN, charging and Droidspaces all work,
-and SukiSU Ultra with SUSFS is stable.
+Verified on device: audio, Bluetooth, WLAN, charging and Droidspaces all work.
+v1.2 is reported working on device by the maintainer, with the EROFS oracle
+(`md5sum /system/lib64/libminikin.so` = `3b3f0ed6...`) holding.
 
 ## Acknowledgements
 

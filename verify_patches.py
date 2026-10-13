@@ -8,7 +8,10 @@ sources and in the merged .config.
 import os
 import subprocess
 
-ROOT = '/data/kleaf_ws/common'
+ROOT = os.path.dirname(os.path.abspath(__file__))
+
+# Number of tracked .patch files under apex-patches/. Bump it when adding one.
+EXPECTED_PATCHES = 44
 
 # (label, markers, where)
 CHECKS = [
@@ -18,12 +21,16 @@ CHECKS = [
     ('BORE (code)',          ['sched_burst_penalty_scale'], 'kernel/sched/bore.c'),
     ('ksu',                  ['CONFIG_KSU='], 'arch/arm64/configs/gki_defconfig'),
     ('ksu obj',              ['kernelsu'], 'drivers/Makefile'),
+    ('ksu upstream marker',  ['welcome to KernelSU version'], 'drivers/kernelsu/core/init.c'),
+    ('ksu version pinned',   ['KSU_VERSION ?= 32680'], 'drivers/kernelsu/Kbuild'),
     ('susfs',                ['CONFIG_KSU_SUSFS='], 'arch/arm64/configs/gki_defconfig'),
+    ('susfs in-tree',        ['susfs_init'], 'fs/susfs.c'),
+    ('susfs selinux wrap',   ['security_dump_masked_av_fn'], 'security/selinux/ss/services.c'),
     ('ntsync',               ['CONFIG_NTSYNC='], 'arch/arm64/configs/gki_defconfig'),
     ('ntsync obj',           ['ntsync'], 'drivers/misc/Kconfig'),
     ('droidspaces',          ['CONFIG_ANDROID_WRAPFD='], 'arch/arm64/configs/gki_defconfig'),
     ('droidspaces code',     ['ghost_task_ready'], 'kernel/pid.c'),
-    ('erofs margin FIX',     ['(~0U)'], 'fs/erofs/decompressor.c'),
+    ('erofs margin FIX',     ['(srcsize) >> 6'], 'fs/erofs/decompressor.c'),
     ('f2fs hybrid',          ['CONFIG_F2FS_FS_HYBRID_UFS='], 'arch/arm64/configs/gki_defconfig'),
     ('f2fs hybrid code',     ['f2fs_hw_support_hybrid'], 'fs/f2fs/hybrid.c'),
     ('f2fs vip',             ['CONFIG_F2FS_VIP_FILE='], 'arch/arm64/configs/gki_defconfig'),
@@ -61,8 +68,8 @@ def main():
                        capture_output=True, text=True)
     n = sum(1 for f in r.stdout.splitlines() if f.endswith('.patch'))
     print('patch files tracked in git: %d' % n)
-    if n != 42:
-        print('NOTE: expected 42 patch files')
+    if n != EXPECTED_PATCHES:
+        print('NOTE: expected %d patch files' % EXPECTED_PATCHES)
 
 
 if __name__ == '__main__':
