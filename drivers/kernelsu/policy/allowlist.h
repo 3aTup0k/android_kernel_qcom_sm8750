@@ -1,6 +1,10 @@
 #ifndef __KSU_H_ALLOWLIST
 #define __KSU_H_ALLOWLIST
 
+#include <linux/types.h>
+#include <linux/uidgid.h>
+#include "uapi/app_profile.h"
+
 #define PER_USER_RANGE 100000
 #define WEBVIEW_ZYGOTE_UID 1053
 #define FIRST_APPLICATION_UID 10000
@@ -20,7 +24,13 @@ void ksu_show_allow_list(void);
 bool __ksu_is_allow_uid(uid_t uid);
 #define ksu_is_allow_uid(uid) unlikely(__ksu_is_allow_uid(uid))
 
-// Check if the uid is in allow list, or current is ksu domain root
+// Check if the uid is in allow list, or current is ksu domain root.
+// Only reflects the grant state, use ksu_is_allow_uid_for_current() to
+// authorize current.
+bool ksu_is_uid_granted_root(uid_t uid);
+
+// ksu_is_uid_granted_root() plus extra restrictions on current, e.g. shell
+// may have to descend from adbd or a ksu domain process
 bool __ksu_is_allow_uid_for_current(uid_t uid);
 #define ksu_is_allow_uid_for_current(uid) unlikely(__ksu_is_allow_uid_for_current(uid))
 

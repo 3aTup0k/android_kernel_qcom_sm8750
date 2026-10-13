@@ -1,13 +1,29 @@
+#include "selinux_hide.h"
+#include "selinux/sepolicy.h"
+#include <linux/cred.h>
 #include <linux/cpu.h>
 #include <linux/memory.h>
+#include <linux/uaccess.h>
+#include <linux/init.h>
+#include <linux/printk.h>
+#include <linux/string.h>
+#include <linux/fs.h>
 #include <asm-generic/errno-base.h>
 #include <net/genetlink.h>
+#include <linux/moduleparam.h>
+#include <linux/mutex.h>
+#include <linux/version.h>
 // security/selinux/include/security.h
 #include <security.h>
 #include <ss/context.h>
 #include <ss/services.h>
 #include <ss/mls.h>
 #include <ss/conditional.h>
+#include "avc.h"
+#include "klog.h" // IWYU pragma: keep
+#include "objsec.h"
+#include "ksu.h"
+#include "policy/feature.h"
 
 static DEFINE_MUTEX(selinux_hide_mutex);
 bool ksu_selinux_hide_enabled __read_mostly = false;
@@ -35,9 +51,8 @@ extern void context_struct_compute_av_fn(struct policydb *policydb,
 #else
 struct selinux_state fake_state;
 #endif
-#ifdef KSU_COMPAT_USE_STATIC_KEY
+
 DEFINE_STATIC_KEY_FALSE(fake_status_initialize_key);
-#endif
 struct page *fake_status = NULL;
 
 void initialize_fake_status()
@@ -145,7 +160,7 @@ static const struct ksu_feature_handler selinux_hide_handler = {
     .set_handler = selinux_hide_feature_set,
 };
 
-void __init ksu_selinux_hide_init(void)
+void __init ksu_selinux_hide_init()
 {
     if (ksu_register_feature_handler(&selinux_hide_handler)) {
         pr_err("Failed to register selinux_hide feature handler\n");
@@ -153,7 +168,7 @@ void __init ksu_selinux_hide_init(void)
     static_key_enable(&fake_status_initialize_key.key);
 }
 
-void __exit ksu_selinux_hide_exit(void)
+void __exit ksu_selinux_hide_exit()
 {
     mutex_lock(&selinux_hide_mutex);
     if (ksu_selinux_hide_running) {
@@ -459,8 +474,7 @@ static void __nocfi type_attribute_bounds_av(struct policydb *policydb, struct c
     avd->allowed &= ~masked;
 
     /* audit masked permissions */
-    if ((void *)security_dump_masked_av_fn != NULL)
-        security_dump_masked_av_fn(policydb, scontext, tcontext, tclass, masked, "bounds");
+    security_dump_masked_av_fn(policydb, scontext, tcontext, tclass, masked, "bounds");
 }
 
 /*
@@ -776,11 +790,7 @@ void __nocfi security_compute_av_user_with_policy(struct selinux_policy *policy,
         goto out;
     }
 
-    if ((void *)context_struct_compute_av_fn != NULL) {
-        context_struct_compute_av_fn(policydb, scontext, tcontext, tclass, avd, NULL);
-    } else {
-        context_struct_compute_av(policydb, scontext, tcontext, tclass, avd, NULL);
-    }
+    context_struct_compute_av_fn(policydb, scontext, tcontext, tclass, avd, NULL);
 out:
     return;
 allow:

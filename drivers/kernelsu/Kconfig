@@ -1,19 +1,14 @@
 menu "KernelSU"
 
 config KSU
-	bool "KernelSU function support"
+	tristate "KernelSU function support"
 	default y
 	help
 	  Enable kernel-level root privileges on Android System.
+	  Requires CONFIG_KPROBES for kernel hooking support.
+	  Requires CONFIG_EXT4_FS for `ext4_unregister_sysfs`.
 	  To compile as a module, choose M here: the
 	  module will be called kernelsu.
-
-config KSU_FEATURE_ADBROOT
-	bool "KernelSU ADB Root feature"
-	depends on KSU
-	default y
-	help
-	  Build KernelSU's adb root feature.
 
 config KSU_DEBUG
 	bool "KernelSU debug mode"
@@ -22,16 +17,22 @@ config KSU_DEBUG
 	help
 	  Enable KernelSU debug mode.
 
-config KPM
-    bool "Enable SukiSU KPM"
-    depends on KSU && 64BIT
-    default n
-    help
-      Enabling this option will activate the KPM feature of SukiSU.
-      This option is suitable for scenarios where you need to force KPM to be enabled.
-      but it may affect system stability.
-    select KALLSYMS
-    select KALLSYMS_ALL
+config KSU_DISABLE_MANAGER
+	bool "Disable KernelSU manager integration"
+	depends on KSU
+	default n
+	help
+	  Disable manager APK detection and manager-specific handling.
+	  Root will be used in place of manager-only functionality.
+
+config KSU_DISABLE_POLICY
+	bool "Disable KernelSU policy profiles"
+	depends on KSU
+	default n
+	help
+	  Disable per-app root/non-root profile customization.
+	  Escalation will always use the default full root profile, and
+	  non-root handling will follow the global umount policy only.
 
 menu "KernelSU - SUSFS"
 config KSU_SUSFS
@@ -123,6 +124,7 @@ config KSU_SUSFS_SUS_MAP
 	  - It does NOT hide any inline hooks or plt hooks cause by the injected library itself.
 	  - It may not be able to evade detections by apps that implement a good injection detection.
 	  - Effective only on zygote/zygote_next spawned user app process that is marked with TIF_PROC_UMOUNTED
+	    and with (uid % 100000) >= 10000.
 
 endmenu
 

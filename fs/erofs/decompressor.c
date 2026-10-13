@@ -52,6 +52,7 @@
  * so changing LZ4 or EROFS version should re-measure rather than assume
  * this still holds.
  */
+#endif
 #define LZ4_DECOMPRESS_INPLACE_MARGIN(srcsize)  (((srcsize) >> 6) + 32)
 
 struct z_erofs_lz4_decompress_ctx {

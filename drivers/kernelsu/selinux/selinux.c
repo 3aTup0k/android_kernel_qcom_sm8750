@@ -1,10 +1,10 @@
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(4, 19, 0)
-bool __maybe_unused is_ksu_transition(const struct task_security_struct *old_tsec,
-                                      const struct task_security_struct *new_tsec)
-{
-    return new_tsec->sid == old_tsec->sid;
-}
-#endif
+#include "selinux.h"
+#include "linux/cred.h"
+#include "linux/sched.h"
+#include "objsec.h"
+#include "linux/version.h"
+#include "klog.h" // IWYU pragma: keep
+#include "ksu.h"
 
 /*
  * Cached SID values for frequently checked contexts.
@@ -21,6 +21,7 @@ bool __maybe_unused is_ksu_transition(const struct task_security_struct *old_tse
 static u32 cached_su_sid __read_mostly = 0;
 static u32 cached_zygote_sid __read_mostly = 0;
 static u32 cached_init_sid __read_mostly = 0;
+static u32 cached_adbd_sid __read_mostly = 0;
 u32 ksu_file_sid __read_mostly = 0;
 
 static int transive_to_domain(const char *domain, struct cred *cred, bool clear_exec_sid)
@@ -63,7 +64,7 @@ void setup_selinux(const char *domain, struct cred *cred)
 
 void setup_ksu_cred(void)
 {
-    if (ksu_cred && transive_to_domain(KERNEL_SU_CONTEXT, ksu_cred, false)) {
+    if (transive_to_domain(KERNEL_SU_CONTEXT, ksu_cred, false)) {
         pr_err("setup ksu cred failed.\n");
     }
 }
@@ -71,34 +72,20 @@ void setup_ksu_cred(void)
 void setenforce(bool enforce)
 {
 #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
-#ifdef KSU_COMPAT_USE_SELINUX_STATE
     selinux_state.enforcing = enforce;
-#else
-    selinux_enforcing = enforce;
-#endif
 #endif
 }
 
 bool getenforce(void)
 {
 #ifdef CONFIG_SECURITY_SELINUX_DISABLE
-#ifdef KSU_COMPAT_USE_SELINUX_STATE
     if (selinux_state.disabled) {
         return false;
     }
-#else
-    if (selinux_disabled) {
-        return false;
-    }
-#endif // KSU_COMPAT_USE_SELINUX_STATE
-#endif // CONFIG_SECURITY_SELINUX_DISABLE
+#endif
 
 #ifdef CONFIG_SECURITY_SELINUX_DEVELOP
-#ifdef KSU_COMPAT_USE_SELINUX_STATE
     return selinux_state.enforcing;
-#else
-    return selinux_enforcing;
-#endif
 #else
     return true;
 #endif
@@ -154,6 +141,14 @@ void cache_sid(void)
         cached_init_sid = 0;
     } else {
         pr_info("Cached init SID: %u\n", cached_init_sid);
+    }
+
+    err = security_secctx_to_secid(ADBD_CONTEXT, strlen(ADBD_CONTEXT), &cached_adbd_sid);
+    if (err) {
+        pr_warn("Failed to cache adbd SID: %d\n", err);
+        cached_adbd_sid = 0;
+    } else {
+        pr_info("Cached adbd SID: %u\n", cached_adbd_sid);
     }
 
     err = security_secctx_to_secid(KSU_FILE_CONTEXT, strlen(KSU_FILE_CONTEXT), &ksu_file_sid);
@@ -219,6 +214,11 @@ bool is_init(const struct cred *cred)
     return is_sid_match(cred, cached_init_sid, INIT_CONTEXT);
 }
 
+bool is_adbd(const struct cred *cred)
+{
+    return is_sid_match(cred, cached_adbd_sid, ADBD_CONTEXT);
+}
+
 void escape_to_root_for_adb_root(void)
 {
     struct cred *cred = prepare_creds();
@@ -235,7 +235,6 @@ void escape_to_root_for_adb_root(void)
     commit_creds(cred);
 }
 
-#ifdef CONFIG_KSU_SUSFS
 #define KERNEL_INIT_DOMAIN "u:r:init:s0"
 #define KERNEL_ZYGOTE_DOMAIN "u:r:zygote:s0"
 #define KERNEL_ZYGOTE_NEXT_DOMAIN "u:r:zygote_next:s0"
@@ -324,4 +323,3 @@ void susfs_set_batch_sid(void)
     susfs_set_sid(KERNEL_INIT_DOMAIN, &susfs_init_sid);
     susfs_set_sid(KERNEL_PRIV_APP_DOMAIN, &susfs_priv_app_sid);
 }
-#endif

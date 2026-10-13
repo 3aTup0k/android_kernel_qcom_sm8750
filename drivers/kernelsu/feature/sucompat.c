@@ -1,22 +1,60 @@
+#include <linux/compiler_types.h>
+#include <linux/preempt.h>
+#include <linux/printk.h>
+#include <linux/mm.h>
+#include <linux/pgtable.h>
+#include <linux/uaccess.h>
+#include <asm/current.h>
+#include <linux/cred.h>
+#include <linux/fs.h>
+#include <linux/types.h>
+#include <linux/version.h>
+#include <linux/sched/task_stack.h>
+#include <linux/ptrace.h>
+#include <linux/susfs_def.h>
+#include <linux/namei.h>
+#include <linux/minmax.h>
+#include <linux/fs_struct.h>
+#include "selinux/selinux.h"
+#include "objsec.h"
+
+#include "arch.h"
+#include "policy/allowlist.h"
+#include "policy/feature.h"
+#include "klog.h" // IWYU pragma: keep
+#include "runtime/ksud.h"
+#include "feature/sucompat.h"
+#include "feature/adb_root.h"
+#include "policy/app_profile.h"
+#include "supercall/supercall.h"
+#include "sulog/event.h"
+#include "uapi/sulog.h"
+
 #define SU_PATH "/system/bin/su"
 #define SH_PATH "/system/bin/sh"
 
-bool ksu_su_compat_enabled __read_mostly = true;
-
-static const char su_path[] = SU_PATH;
 static const char sh_path[] = SH_PATH;
+static const char su_path[] = SU_PATH;
 static const char ksud_path[] = KSUD_PATH;
+
+DEFINE_STATIC_KEY_TRUE(ksu_su_compat_enabled);
 
 static int su_compat_feature_get(u64 *value)
 {
-    *value = ksu_su_compat_enabled ? 1 : 0;
+    if (static_key_enabled(&ksu_su_compat_enabled))
+        *value = 1;
+    else
+        *value = 0;
     return 0;
 }
 
 static int su_compat_feature_set(u64 value)
 {
     bool enable = value != 0;
-    ksu_su_compat_enabled = enable;
+    if (enable)
+        static_branch_enable(&ksu_su_compat_enabled);
+    else
+        static_branch_disable(&ksu_su_compat_enabled);
     pr_info("su_compat: set to %d\n", enable);
     return 0;
 }
@@ -39,23 +77,45 @@ static void __user *userspace_stack_buffer(const void *d, size_t len)
 
 static char __user *sh_user_path(void)
 {
+    static const char sh_path[] = "/system/bin/sh";
+
     return userspace_stack_buffer(sh_path, sizeof(sh_path));
 }
 
 static char __user *ksud_user_path(void)
 {
+    static const char ksud_path[] = KSUD_PATH;
+
     return userspace_stack_buffer(ksud_path, sizeof(ksud_path));
 }
 
+static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
+{
+    const char __user *native;
 
-#ifdef CONFIG_KSU_SUSFS
-extern const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr);
+#ifdef CONFIG_COMPAT
+    if (unlikely(argv.is_compat)) {
+        compat_uptr_t compat;
+
+        if (get_user(compat, argv.ptr.compat + nr))
+            return ERR_PTR(-EFAULT);
+
+        return compat_ptr(compat);
+    }
+#endif
+
+    if (get_user(native, argv.ptr.native + nr))
+        return ERR_PTR(-EFAULT);
+
+    return native;
+}
+
 /*
  * return 0 -> No further checks should be required afterwards
  * return non-zero -> Further checks should be continued afterwards
  */
 int ksu_handle_execveat_init(struct filename *filename, struct user_arg_ptr *argv_user, struct user_arg_ptr *envp_user) {
-    int ret = 0;
+    int ret;
 
     if (current->pid == 1)
         return -EINVAL;
@@ -69,7 +129,7 @@ int ksu_handle_execveat_init(struct filename *filename, struct user_arg_ptr *arg
 
         pr_info("hook_manager: escape to root for init executing ksud: %d\n", current->pid);
         pending_sucompat = ksu_sulog_capture_sucompat(filename->name, argv_user, GFP_KERNEL);
-        escape_to_root_for_init();
+        ret = escape_to_root_for_init();
         if (ret) {
             pr_err("escape_to_root_for_init() failed: %d\n", ret);
             return ret;
@@ -91,7 +151,6 @@ int ksu_handle_execveat_init(struct filename *filename, struct user_arg_ptr *arg
         return 0;
     }
 
-#ifdef CONFIG_KSU_FEATURE_ADBROOT
 #ifdef CONFIG_COMPAT
     if (unlikely(envp_user->is_compat))
         ret = ksu_adb_root_handle_execveat(filename->name, (void ***)&envp_user->ptr.compat);
@@ -99,7 +158,6 @@ int ksu_handle_execveat_init(struct filename *filename, struct user_arg_ptr *arg
         ret = ksu_adb_root_handle_execveat(filename->name, (void ***)&envp_user->ptr.native);
 #else
         ret = ksu_adb_root_handle_execveat(filename->name, (void ***)&envp_user->ptr.native);
-#endif
 #endif
 
     if (ret)
@@ -127,7 +185,7 @@ int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,
     if (!ksu_handle_execveat_init(filename, (struct user_arg_ptr*)argv_user, (struct user_arg_ptr*)envp_user))
         return -EINVAL;
 
-    if (!(__ksu_is_allow_uid_for_current(current_uid().val)))
+    if (likely(!__ksu_is_allow_uid_for_current(current_uid().val)))
         return -EINVAL;
 
     if (likely(memcmp(filename->name, su_path, sizeof(su_path))))
@@ -171,18 +229,12 @@ int ksu_handle_post_execveat_sucompat(int *fd, struct filename **filename_ptr,
     return 0;
 }
 
-#ifdef KSU_COMPAT_USE_STATIC_KEY
 extern struct static_key_true is_first_zygote;
-#endif
 
 int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,
             void *envp, int *flags)
 {
-#ifdef KSU_COMPAT_USE_STATIC_KEY
     if (static_branch_unlikely(&is_first_zygote))
-#else
-    if (unlikely(first_zygote))
-#endif
         (void)ksu_handle_execveat_ksud(fd, filename_ptr, argv, envp, flags);
 
     return ksu_handle_execveat_sucompat(fd, filename_ptr, argv, envp,
@@ -227,172 +279,14 @@ int ksu_handle_stat(int *dfd, struct filename **filename, int *flags) {
     return 0;
 }
 
-#else
-__attribute__((hot)) static __always_inline bool __is_su_allowed(const void **ptr_to_check)
-{
-    if (!ksu_su_compat_enabled)
-        return false;
-
-    if (likely(test_thread_flag(TIF_SECCOMP)))
-        return false;
-
-    if (!ksu_is_allow_uid_for_current(current_uid().val))
-        return false;
-
-    if (unlikely(!ptr_to_check))
-        return false;
-
-    if (unlikely(!*ptr_to_check))
-        return false;
-
-    return true;
-}
-#define is_su_allowed(ptr) (__is_su_allowed((const void **)ptr))
-
-static noinline int ksu_sucompat_user_common(const char __user **filename_user, const char *syscall_name,
-                                             const bool escalate)
-{
-    char path[sizeof(su_path)] = { 0 }; // sizeof includes nullterm already!
-    long len = ksu_strncpy_from_user_nofault(path, *filename_user, sizeof(path));
-    int ret = 0;
-
-    if (unlikely(len <= 0))
-        return -EFAULT;
-
-    if (likely(memcmp(path, su_path, sizeof(su_path))))
-        return 0;
-
-    if (!escalate)
-        goto no_escalate;
-
-    ret = escape_with_root_profile();
-    if (!!ret)
-        return ret;
-
-    // NOTE: we only check file existence, not exec success!
-    struct path kpath;
-    if (!!kern_path(ksud_path, 0, &kpath))
-        goto no_ksud;
-
-    path_put(&kpath);
-    pr_info("%s su->ksud!\n", syscall_name);
-    *filename_user = ksud_user_path();
-    return 0;
-
-no_ksud:
-no_escalate:
-    pr_info("%s su->sh!\n", syscall_name);
-    *filename_user = sh_user_path();
-    return 0;
-}
-
-int ksu_handle_faccessat(int *dfd, const char __user **filename_user, int *mode, int *__unused_flags)
-{
-    if (!is_su_allowed(filename_user))
-        return 0;
-
-    ksu_sucompat_user_common(filename_user, "faccessat", false);
-    return 0;
-}
-
-int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags)
-{
-    if (!is_su_allowed(filename_user))
-        return 0;
-
-    ksu_sucompat_user_common(filename_user, "newfstatat", false);
-    return 0;
-}
-
-int ksu_handle_execve_sucompat(int *fd, const char __user **filename_user, void *argv, void *__never_use_envp,
-                               int *__never_use_flags)
-{
-    struct ksu_sulog_pending_event *pending_root_execve = NULL;
-    int ret = 0;
-
-    if (!is_su_allowed(filename_user))
-        return 0;
-
-    pending_root_execve =
-        ksu_sulog_capture_sucompat(*filename_user, *((struct user_arg_ptr *)argv), GFP_KERNEL);
-
-    ret = ksu_sucompat_user_common(filename_user, "sys_execve", true);
-    ksu_sulog_emit_pending(pending_root_execve, ret, GFP_KERNEL);
-    return 0;
-}
-
-int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr, void *argv, void *__never_use_envp,
-                                 int *__never_use_flags)
-{
-    struct ksu_sulog_pending_event *pending_root_execve = NULL;
-    int ret = 0;
-
-    if (!is_su_allowed(filename_ptr))
-        return 0;
-
-    if (likely(memcmp((void *)(*filename_ptr)->name, su_path, sizeof(su_path))))
-        return 0;
-
-    pending_root_execve =
-        ksu_sulog_capture_sucompat((*filename_ptr)->name, *((struct user_arg_ptr *)argv), GFP_KERNEL);
-
-    ret = escape_with_root_profile();
-    ksu_sulog_emit_pending(pending_root_execve, ret, GFP_KERNEL);
-    if (!!ret)
-        return 0;
-
-    // NOTE: we only check file existence, not exec success!
-    struct path kpath;
-    if (!!kern_path("/data/adb/ksud", 0, &kpath))
-        goto no_ksud;
-
-    path_put(&kpath);
-    pr_info("do_execveat_common su->ksud!\n");
-    memcpy((void *)(*filename_ptr)->name, ksud_path, sizeof(ksud_path));
-    return 0;
-
-no_ksud:
-    pr_info("do_execveat_common su->sh!\n");
-    memcpy((void *)(*filename_ptr)->name, sh_path, sizeof(sh_path));
-    return 0;
-}
-
-extern bool ksu_execveat_hook __read_mostly;
-int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv, void *envp, int *flags)
-{
-#ifdef CONFIG_KSU_FEATURE_ADBROOT
-    int ret = 0;
-    if (current_uid().val != 1 && is_init(get_current_cred())) {
-        ret = ksu_adb_root_handle_execve_manual((*filename_ptr)->name, (struct user_arg_ptr *)envp);
-        if (ret) {
-            pr_err("adb root failed: %d\n", (int)ret);
-        }
-    }
-#endif
-
-    if (unlikely(ksu_execveat_hook)) {
-        return ksu_handle_execveat_ksud(fd, filename_ptr, argv, envp, flags);
-    }
-
-    return ksu_handle_execveat_sucompat(fd, filename_ptr, argv, envp, flags);
-}
-
-// dead code
-int __maybe_unused ksu_handle_devpts(struct inode *inode)
-{
-    return 0;
-}
-#endif
-
 // sucompat: permitted process can execute 'su' to gain root access.
-void __init ksu_sucompat_init(void)
+void __init ksu_sucompat_init()
 {
-    if (ksu_register_feature_handler(&su_compat_handler)) {
+    if (ksu_register_feature_handler(&su_compat_handler))
         pr_err("Failed to register su_compat feature handler\n");
-    }
 }
 
-void __exit ksu_sucompat_exit(void)
+void __exit ksu_sucompat_exit()
 {
     ksu_unregister_feature_handler(KSU_FEATURE_SU_COMPAT);
 }
