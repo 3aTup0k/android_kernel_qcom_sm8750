@@ -206,4 +206,16 @@ elif [ "${LOCALVERSION+set}" != "set" ]; then
 fi
 
 
-echo "${KERNELVERSION}${file_localversion}${config_localversion}${LOCALVERSION}${scm_version}"
+# Move the SCM suffix (e.g. "-g1234abcd-dirty") of the localversion file to the
+# end of the release string, so the result reads
+#   "<version>-android15-8-4k-MaybeKernel-<hash>".
+file_base="${file_localversion}"
+scm_suffix=""
+case "${file_base}" in
+	*-g[0-9a-f][0-9a-f]*)
+		scm_suffix="-g${file_base##*-g}"
+		file_base="${file_base%-g*}"
+		;;
+esac
+
+echo "${KERNELVERSION}${file_base}${LOCALVERSION}${config_localversion}${scm_suffix}"
