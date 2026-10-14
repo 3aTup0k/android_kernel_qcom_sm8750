@@ -117,84 +117,41 @@ chmod +x ~/bin/repo
 export PATH="$HOME/bin:$PATH"
 ```
 
-## Building
+## Build
+
+This tree builds with **plain `make` + clang** (no `repo`, no kleaf), the same method as [palazik/actions_oplus_sm8750](https://github.com/palazik/actions_oplus_sm8750).
+
+### Prerequisites (Linux x86_64)
+
+- `git`, `python3`, `make`, `bison`, `flex`, `bc`, `lz4`, `pahole`, `rsync`
+- `libelf-dev`, `libssl-dev`
+- AOSP clang (prebuilts/clang from this tree work)
+
+### Clone
 
 ```bash
-mkdir -p ~/kernel_workspace && cd ~/kernel_workspace
-
-repo init --depth=1 -u https://android.googlesource.com/kernel/manifest \
-          -b common-android15-6.6-2026-07
-repo sync -c --no-clone-bundle --no-tags --optimized-fetch --prune -j"$(nproc)"
-
-# point 'common' at this repository
-git -C common remote remove origin
-git -C common remote add origin https://github.com/ilertnost/android_kernel_qcom_sm8750.git
-git -C common fetch origin lineage-23.2
-git -C common checkout lineage-23.2
-
-mkdir -p dist ~/.cache/bazel
-
-tools/bazel run \
-  --lto=none \
-  --config=stamp \
-  --disk_cache="$HOME/.cache/bazel" \
-  //common:kernel_aarch64_dist \
-  -- --dist_dir="$PWD/dist"
+git clone https://github.com/ilertnost/android_kernel_qcom_sm8750.git
+cd android_kernel_qcom_sm8750
 ```
 
-The kernel lands at `dist/Image`. First build takes roughly 20–40 minutes;
-later builds are incremental through the bazel disk cache.
-
-### Verify
+### Build (GKI, aarch64)
 
 ```bash
-strings dist/Image | grep -m1 '^Linux version'
-# 6.6.144-android15-8-4k-APEX-Foundry-v1.2
+export PATH=$(pwd)/prebuilts/clang/host/linux-x86/clang-r510928/bin:$PATH
+export LLVM=1 LLVM_IAS=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu-
+O=out
+mkdir -p $O
+make O=$O gki_defconfig
+make -j$(nproc) O=$O Image
 ```
 
-The version string is produced the normal way, from `CONFIG_LOCALVERSION` in
-`gki_defconfig`. Nothing overrides it and `scripts/setlocalversion` is stock.
+The kernel image will be at `out/arch/arm64/boot/Image`.
 
-Two kleaf-generated pieces go into that:
+Notes:
+- This tree's `gki_defconfig` already includes KSU+SUSFS, BORE, KASAN/KFENCE, and the KMI relax (`CONFIG_APEX_RELAX_GKI_MODULE_KMI=y`) — no extra `.raw` files or local tweaks are needed.
+- KASAN is compiled in and can be disabled at boot with `kasan=off`.
 
-- `android15-8` is `-${android_release}-${KMI_GENERATION}`, written by kleaf into
-  a `localversion` file in the source tree. `android_release` comes from the
-  workspace `BRANCH`, `KMI_GENERATION` is AOSP's GKI KMI generation. See
-  `build/kernel/kleaf/impl/stamp.bzl`, `_write_localversion`.
-- `-4k` is `CONFIG_LOCALVERSION` from `gki_defconfig`, where `-APEX-Foundry-v1.2`
-  was added.
 
-`--config=stamp` also matters. Without it, kleaf writes `-maybe-dirty` into that
-same `localversion` file instead of consulting `STABLE_SCMVERSIONS`. With it,
-`LOCALVERSION=""` is exported, which is what makes `setlocalversion` skip git, so
-the result carries no commit hash and is reproducible.
-
-Earlier builds produced a different string by replacing the final `echo` in
-`scripts/setlocalversion` with a hardcoded one. That made the reported version
-unrelated to what was built, and it spelled out `maybe-dirty` unconditionally,
-whether or not the tree was dirty. On a clean tree that was a false claim. Both
-problems are gone.
-
-`UTS_RELEASE` is capped at 64 characters, so keep `CONFIG_LOCALVERSION` well
-under that. `v1.2` fits easily; the aborted `v0.2-Experimental` did not, which
-is why that build shipped abbreviated as `v0.2-Exp`.
-
-Upstream KernelSU is vendored in this repository, under `drivers/kernelsu/`,
-at commit `0c0fdb96` of `tiann/KernelSU` `main` (2680 commits, reported as
-KSU_VERSION 32680). `drivers/uapi/` holds the matching UAPI headers.
-
-SUSFS is grafted on with the `susfs4ksu` patches for `gki-android15-6.6`:
-
-```bash
-# in common/, with a/kernel/ rewritten to a/drivers/kernelsu/
-patch -p1 < .../KernelSU/10_enable_susfs_for_ksu.patch
-patch -p1 < .../50_add_susfs_in_gki-android15-6.6.patch
-# 50_add_susfs does not create fs/susfs.c or the two headers - copy them in
-```
-
-Full steps and the three build fixes are in
-`apex-patches/kernelsu/README.md`. The earlier SukiSU Ultra material is kept
-in `apex-patches/sukisu-ultra/` for reference only; it is not used by v1.2.
 
 ## Flashing
 
