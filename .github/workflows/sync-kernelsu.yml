@@ -104,8 +104,16 @@ jobs:
           BODY=$(printf 'Automated KernelSU sync.\n\n- upstream: `tiann/KernelSU` `%s` @ `%s` (%s commits)\n- `KSU_VERSION`: `%s`\n\nRe-vendors `drivers/kernelsu` + `drivers/uapi`, re-applies the SUSFS driver patch and the local fixes. Merging this into `lineage-23.2` makes later builds ship KernelSU %s.\n' \
             "${KSU_REF:-main}" "$KSU_COMMIT" "$KSU_COMMITS" "$KSU_VERSION" "$KSU_VERSION")
 
-          gh pr create \
-            --base lineage-23.2 \
-            --head "$BRANCH" \
-            --title "kernelsu: vendor upstream ${KSU_COMMIT} (KSU_VERSION ${KSU_VERSION})" \
-            --body "$BODY"
+          if ! gh pr create \
+                 --base lineage-23.2 \
+                 --head "$BRANCH" \
+                 --title "kernelsu: vendor upstream ${KSU_COMMIT} (KSU_VERSION ${KSU_VERSION})" \
+                 --body "$BODY"; then
+            echo "::warning::could not open the pull request automatically"
+            echo "::warning::if the error mentions Actions not being permitted to create pull"
+            echo "::warning::requests, enable Settings -> Actions -> General ->"
+            echo "::warning::'Allow GitHub Actions to create and approve pull requests'"
+            echo "the branch $BRANCH is pushed, open the pull request here:"
+            echo "  https://github.com/${GITHUB_REPOSITORY}/compare/lineage-23.2...${BRANCH}?expand=1"
+            exit 1
+          fi
