@@ -107,13 +107,11 @@ $(info -- KernelSU version: $(KSU_VERSION))
 ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 else
 # If there is no .git directory, use default version
-# kleaf builds run in a sandbox where the kernel tree is a copy without .git,
-# so the git-derived path above never fires and KSU_VERSION would fall back to
-# the sentinel 16. The manager reads this number over the supercall and treats
-# 16 as an ancient kernel, so the vendored revision is pinned here instead:
-# upstream tiann/KernelSU main @ 2680 commits, i.e. 30000 + 2680.
+# A sandboxed copy of the tree (kleaf) has no .git, so the git-derived path
+# above never fires and KSU_VERSION would fall back to the sentinel 16, which
+# the manager reads as an ancient kernel. Pin the vendored revision instead:
 $(warning "KSU_GIT_VERSION not defined! Pinning the vendored revision instead")
-KSU_VERSION ?= 32680
+KSU_VERSION ?= 32682
 ccflags-y += -DKSU_VERSION=$(KSU_VERSION)
 endif
 
