@@ -1,4 +1,5 @@
-# APEX-Foundry
+# MaybeKernel ?
+it work, trust me
 
 Custom GKI kernel for the **Xiaomi 15** (codename `dada`, SM8750 / Snapdragon 8 Elite).
 
@@ -6,7 +7,7 @@ Builds on the LineageOS `android_kernel_qcom_sm8750` tree at **6.6.144**
 (ASB-2026-10-05, GKI branch `android15-6.6`) and runs the device's
 **stock vendor modules unmodified**.
 
-Flavour: `v1.2` — upstream KernelSU main, SUSFS, BORE, memfd ashmem shim, ADIOS, NTsync
+Flavour: `R1.2` — upstream KernelSU main, SUSFS, BORE, memfd ashmem shim, ADIOS, NTsync
 
 ---
 
@@ -173,9 +174,9 @@ adb shell 'ip -br link | grep wlan'               # expect wlan0
 
 **Upstream KernelSU** (`tiann/KernelSU`, `main`) built into the kernel, plus
 **SUSFS**. No module to install and no boot image patch — `uname -r` reports
-`APEX-Foundry-v1.2` and the manager talks to it directly.
+`MaybeKernel` and the manager talks to it directly.
 
-v1.2 moved off SukiSU Ultra. The deciding fact is that SUSFS is a patch set and
+R1.2 moved off SukiSU Ultra. The deciding fact is that SUSFS is a patch set and
 is only kept against one root implementation at a time; by 1.2 `susfs4ksu` had
 moved on to upstream KernelSU. Upstream is also the base the patch is written
 against — `kernel/Kbuild` in `tiann/KernelSU` `main` is blob `6c92a013`, exactly
@@ -253,24 +254,6 @@ The full audit, and the runtime experiments that could still produce one, are in
 `findings/POWER_THERMAL_AUDIT.md`. Runtime governor tuning is the honest place
 to look, not kernel patches.
 
-## Versioning
-
-Three maturity stages, named for what changes between them:
-
-| Flavour | Meaning |
-|---|---|
-| `v0.1 (Prototype)` | Working model, rough edges expected. |
-| `v0.2 (Experimental)` | Features on trial, behaviour may change. |
-| `v1.0 (Tempered)` | Hardened by testing, for daily use. |
-| `v1.1` | Adds BORE, the memfd ashmem shim, SukiSU Ultra main. See `CHANGELOG.md`. |
-| `v1.2` | Narrows the EROFS LZ4 inplace margin to `>> 6`, and replaces SukiSU Ultra with upstream KernelSU main, SUSFS still in-tree. See `CHANGELOG.md`. |
-
-## Known cosmetic issue
-
-None that the kernel controls. v1.1 reported a version the manager disagreed
-with because it pinned a SukiSU commit rather than the branch tip. v1.2 reports
-`KSU_VERSION 32680` from upstream KernelSU's own numbering, which is what the
-upstream manager expects.
 
 ## Branch naming
 
@@ -288,7 +271,7 @@ different things:
   the community build workflows are written against 23.0-23.2, and Android 16
   is what has been verified on device.
 
-Kernel version string stays `APEX-Foundry-v1.2`; the two numbering schemes are
+Kernel version string stays `MaybeKernel-R1.2`; the two numbering schemes are
 independent and never mixed.
 
 ## Layout
@@ -296,13 +279,12 @@ independent and never mixed.
 | Branch | Contents |
 |---|---|
 | `lineage-23.2` | Current. KMI fix, optimizations, Droidspaces, upstream KernelSU, SUSFS. |
-| `apex-foundry-v0.1-prot` | The working base, before optional features. |
-| `android15-6.6-dada` | Full upstream GKI history, kept for reference. |
+| `ksu-sync/32682` | lineage-23.2 branch with merged latest kernelsu 32682. |
 
 ## Status
 
 Verified on device: audio, Bluetooth, WLAN, charging and Droidspaces all work.
-v1.2 is reported working on device by the maintainer, with the EROFS oracle
+R1.2 is reported working on device by the maintainer, with the EROFS oracle
 (`md5sum /system/lib64/libminikin.so` = `3b3f0ed6...`) holding.
 
 ## Acknowledgements
@@ -313,6 +295,13 @@ v1.2 is reported working on device by the maintainer, with the EROFS oracle
 - The community GKI build workflows this approach follows
 - The optimization and Droidspaces patch authors, whose patches are recorded
   verbatim in `apex-patches/`
+
+## Credits
+- Google / Qualcomm (Base GKI SM8750 source)
+- LineageOS community
+- APEX Foundry Kernel
+- @palaziks
+- @iLRTx45557
 
 ## Licence
 
