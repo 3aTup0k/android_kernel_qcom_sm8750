@@ -1,0 +1,108 @@
+name: Sync KernelSU
+
+# Re-vendors the latest upstream tiann/KernelSU into drivers/kernelsu and
+# re-grafts the in-tree SUSFS support, then opens a pull request when the result
+# differs from lineage-23.2.
+#
+# KernelSU in this tree is upstream tiann/KernelSU with SUSFS grafted in - see
+# apex-patches/kernelsu/README.md. The SUSFS patch is pinned to a specific
+# KernelSU revision, so this job fails loudly (and commits nothing) once
+# upstream has moved too far: refresh the patch instead of forcing it through.
+#
+# Nothing happens when the tree is already current.
+#
+# Note for forks: scheduled workflows are disabled until you enable Actions once
+# in the "Actions" tab. Manual runs (Run workflow) work right away.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ksu_ref:
+        description: KernelSU ref to sync from
+        required: false
+        default: main
+  schedule:
+    # Saturdays 04:00 UTC, after the weekly kernel build.
+    - cron: "0 4 * * 6"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  KSU_REPO: https://github.com/tiann/KernelSU
+  SYNC_SCRIPT_URL: https://raw.githubusercontent.com/3aTup0k/kernel_qcom_sm8750_build/main/scripts/sync-kernelsu.sh
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout lineage-23.2
+        uses: actions/checkout@v4
+        with:
+          ref: lineage-23.2
+          fetch-depth: 0
+
+      - name: Install patch
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends patch
+
+      - name: Fetch the sync script
+        run: |
+          curl -sSL --retry 5 --retry-delay 5 -o /tmp/sync-kernelsu.sh "$SYNC_SCRIPT_URL"
+          head -5 /tmp/sync-kernelsu.sh
+
+      - name: Sync KernelSU
+        id: sync
+        run: |
+          set +e
+          KSU_REPO="$KSU_REPO" KSU_SYNC_ENV_FILE=/tmp/ksu.env \
+            bash /tmp/sync-kernelsu.sh . "${{ github.event.inputs.ksu_ref || 'main' }}"
+          rc=$?
+          set -e
+          case "$rc" in
+            0) echo "changed=yes" >> "$GITHUB_OUTPUT" ;;
+            3) echo "changed=no"  >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::error::KernelSU sync failed (rc=$rc) - the SUSFS patch no longer applies to upstream"
+              exit "$rc"
+              ;;
+          esac
+
+      - name: Show the result
+        if: steps.sync.outputs.changed == 'yes'
+        run: |
+          cat /tmp/ksu.env
+          git --no-pager diff --stat
+
+      - name: Open pull request
+        if: steps.sync.outputs.changed == 'yes'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # shellcheck disable=SC1091
+          . /tmp/ksu.env
+          BRANCH="ksu-sync/${KSU_VERSION}"
+
+          git config user.name  "3aTup0k"
+          git config user.email "145951985+3aTup0k@users.noreply.github.com"
+
+          git checkout -B "$BRANCH"
+          git add drivers/kernelsu drivers/uapi apex-patches/kernelsu/README.md
+          git commit -m "kernelsu: vendor upstream ${KSU_COMMIT} (KSU_VERSION ${KSU_VERSION})"
+          git push -u origin "$BRANCH" --force
+
+          if gh pr view "$BRANCH" >/dev/null 2>&1; then
+            echo "::notice::pull request for $BRANCH already exists"
+            exit 0
+          fi
+
+          BODY=$(printf 'Automated KernelSU sync.\n\n- upstream: `tiann/KernelSU` `%s` @ `%s` (%s commits)\n- `KSU_VERSION`: `%s`\n\nRe-vendors `drivers/kernelsu` + `drivers/uapi`, re-applies the SUSFS driver patch and the local fixes. Merging this into `lineage-23.2` makes later builds ship KernelSU %s.\n' \
+            "${KSU_REF:-main}" "$KSU_COMMIT" "$KSU_COMMITS" "$KSU_VERSION" "$KSU_VERSION")
+
+          gh pr create \
+            --base lineage-23.2 \
+            --head "$BRANCH" \
+            --title "kernelsu: vendor upstream ${KSU_COMMIT} (KSU_VERSION ${KSU_VERSION})" \
+            --body "$BODY"
