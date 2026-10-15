@@ -22,8 +22,8 @@ Upstream `main` is the base those patches are written against. Its
 in `10_enable_susfs_for_ksu.patch`, and that patch applies with **0 of 97
 hunks failing**.
 
-Vendored at commit `0c0fdb96` of `tiann/KernelSU` `main` (2680 commits,
-reported as KSU_VERSION 32680).
+Vendored at commit `b94e0916` of `tiann/KernelSU` `main` (2682 commits,
+reported as KSU_VERSION 32682).
 
 ## The patches in this directory
 
